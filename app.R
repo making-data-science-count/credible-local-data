@@ -364,8 +364,8 @@ ui <- dashboardPage(
                     ),
                     column(3,
                            sliderInput("year_selection", "Select Year Range:",
-                                       min = 1960, max = 2024, 
-                                       value = c(2023, 2024),
+                                       min = 1960, max = 2026,
+                                       value = c(2023, 2025),
                                        step = 1, sep = "")
                     )
                   ),
@@ -379,11 +379,11 @@ ui <- dashboardPage(
                            h5("Primary Indicators"),
                            checkboxGroupInput("parameters_primary", NULL,
                                               choices = c("pH" = "pH",
-                                                          "Phosphorus" = "Phosphorus", 
+                                                          "Phosphorus" = "Phosphorus",
                                                           "Turbidity" = "Turbidity",
                                                           "Temperature" = "Temperature",
                                                           "Dissolved oxygen" = "Dissolved oxygen"),
-                                              selected = c("pH", "Phosphorus", "Turbidity"),
+                                              selected = c("pH", "Turbidity"),
                                               inline = FALSE)
                     ),
                     column(6,
@@ -399,7 +399,7 @@ ui <- dashboardPage(
                                                           "Sulfate" = "Sulfate",
                                                           "Ammonia" = "Ammonia",
                                                           "Total nitrogen" = "Total nitrogen"),
-                                              selected = c(),
+                                              selected = c("Nitrate"),
                                               inline = FALSE)
                     )
                   ),
@@ -437,7 +437,7 @@ ui <- dashboardPage(
                     h4("Site Selection"),
                     fluidRow(
                       column(8,
-                             selectInput("site_selection", "Select Site(s) for Selected Location:", 
+                             selectInput("site_selection", "Select Site(s) for Selected Location:",
                                          choices = c("All sites" = "all"),
                                          selected = "all",
                                          multiple = TRUE)
@@ -446,7 +446,24 @@ ui <- dashboardPage(
                              br(),
                              p("Select specific monitoring sites within your chosen location for focused analysis.")
                       )
-                    )
+                    ),
+
+                    hr(),
+                    h4("Time Aggregation"),
+                    fluidRow(
+                      column(8,
+                             selectInput("time_aggregation", "Aggregate measurements by:",
+                                         choices = c("None (raw data)" = "none",
+                                                     "Month" = "month"),
+                                         selected = "month")
+                      ),
+                      column(4,
+                             br(),
+                             p("Aggregate multiple measurements within each time period to reduce missingness and data volume.")
+                      )
+                    ),
+                    p(style = "font-size: 12px; color: #6c757d;",
+                      "Note: Aggregation calculates the mean of available measurements for each parameter within each time period. This helps handle irregular sampling and missing values.")
                   )
                 )
               ),
@@ -737,11 +754,11 @@ server <- function(input, output, session) {
       updateSelectInput(session, "county_selection", 
                         choices = c("Choose a county..." = ""),
                         selected = "")
-      updateSliderInput(session, "year_selection", value = c(2023, 2024))
-      updateCheckboxGroupInput(session, "parameters_primary", 
-                               selected = c("pH", "Phosphorus", "Turbidity"))
-      updateCheckboxGroupInput(session, "parameters_additional", 
-                               selected = c())
+      updateSliderInput(session, "year_selection", value = c(2023, 2025))
+      updateCheckboxGroupInput(session, "parameters_primary",
+                               selected = c("pH", "Turbidity"))
+      updateCheckboxGroupInput(session, "parameters_additional",
+                               selected = c("Nitrate"))
       updateSelectInput(session, "site_selection", 
                         choices = c("All sites" = "all"),
                         selected = "all")
@@ -867,12 +884,13 @@ server <- function(input, output, session) {
         
         values$wide_data <- wq_wide
         
-        # Get available sites for selector (ensure uniqueness)
-        available_sites <- wq_join %>% 
-          distinct(site_id, site_name) %>%
-          arrange(site_name) %>%
-          # Remove any duplicate site names (keep first occurrence)
-          distinct(site_name, .keep_all = TRUE)
+        # Get top 5 most active sites (by measurement count)
+        available_sites <- wq_join %>%
+          group_by(site_id, site_name) %>%
+          summarise(n_measurements = n(), .groups = "drop") %>%
+          arrange(desc(n_measurements)) %>%
+          slice_head(n = 5) %>%
+          select(site_id, site_name)
         
         values$available_sites <- available_sites
         values$data_fetched <- TRUE
@@ -914,11 +932,37 @@ server <- function(input, output, session) {
     # Data filtering based on site selection
     filtered_wide_data <- reactive({
       if (!is.null(values$wide_data)) {
-        if ("all" %in% input$site_selection || is.null(input$site_selection)) {
+        # First filter by site
+        data <- if ("all" %in% input$site_selection || is.null(input$site_selection)) {
           values$wide_data
         } else {
           values$wide_data %>% filter(site_id %in% input$site_selection)
         }
+
+        # Then apply time aggregation if selected
+        if (!is.null(input$time_aggregation) && input$time_aggregation != "none") {
+          data <- data %>%
+            mutate(
+              date = as.Date(date),
+              time_period = case_when(
+                input$time_aggregation == "day" ~ as.character(date),
+                input$time_aggregation == "week" ~ as.character(floor_date(date, "week")),
+                input$time_aggregation == "month" ~ format(date, "%Y-%m"),
+                input$time_aggregation == "year" ~ format(date, "%Y")
+              )
+            ) %>%
+            group_by(site_no, station_nm, time_period) %>%
+            summarise(
+              across(where(is.numeric), ~mean(.x, na.rm = TRUE)),
+              n_measurements = n(),
+              date_range = paste(min(date, na.rm = TRUE), "to", max(date, na.rm = TRUE)),
+              .groups = "drop"
+            ) %>%
+            rename(date = time_period) %>%
+            select(site_no, station_nm, date, everything())
+        }
+
+        return(data)
       }
     })
     
@@ -935,7 +979,12 @@ server <- function(input, output, session) {
       filename = function() {
         location_safe <- gsub("[^A-Za-z0-9]", "_", values$current_location)
         site_suffix <- if("all" %in% input$site_selection) "all_sites" else "selected_sites"
-        paste0("water_quality_", location_safe, "_", site_suffix, "_", Sys.Date(), ".csv")
+        agg_suffix <- if(!is.null(input$time_aggregation) && input$time_aggregation != "none") {
+          paste0("_", input$time_aggregation, "ly")
+        } else {
+          ""
+        }
+        paste0("water_quality_", location_safe, "_", site_suffix, agg_suffix, "_", Sys.Date(), ".csv")
       },
       content = function(file) {
         data <- filtered_wide_data()
@@ -961,10 +1010,21 @@ server <- function(input, output, session) {
         return()
       }
       
-      # Get dataset name from input
+      # Get dataset name from input and add aggregation suffix
       dataset_name <- input$codap_dataset_name
       if (is.null(dataset_name) || dataset_name == "") {
         dataset_name <- "WaterQualityData"
+      }
+
+      # Add aggregation level to dataset name
+      if (!is.null(input$time_aggregation) && input$time_aggregation != "none") {
+        agg_label <- switch(input$time_aggregation,
+          "day" = "Daily",
+          "week" = "Weekly",
+          "month" = "Monthly",
+          "year" = "Yearly"
+        )
+        dataset_name <- paste0(dataset_name, "_", agg_label)
       }
       
       # Convert data frame columns into CODAP attributes format

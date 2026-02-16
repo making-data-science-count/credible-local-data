@@ -2,7 +2,13 @@
   "permissions": {
     "allow": [
       "Bash(ls:*)",
-      "Bash(wc:*)"
+      "Bash(wc:*)",
+      "Bash(Rscript:*)",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:unpkg.com)",
+      "WebFetch(domain:codap.concord.org)",
+      "Bash(git stash:*)"
     ]
   }
 }

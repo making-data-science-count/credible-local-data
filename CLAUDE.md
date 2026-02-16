@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-CREDIBLE Local Data is a Shiny web application for collecting environmental data (water quality, air quality, weather/climate) for educational purposes. The app fetches data from multiple federal APIs (USGS Water Quality Portal, EPA AQS, NOAA/climateR) and exports it in CSV format or directly to CODAP (Common Online Data Analysis Platform) for interactive analysis.
+CREDIBLE Local Data is a Shiny web application for collecting water quality data for educational purposes. The app fetches data from the USGS Water Quality Portal and exports it in CSV format or directly to CODAP (Common Online Data Analysis Platform) for interactive analysis.
+
+**IMPORTANT:** Air quality and weather/climate features are currently archived (wrapped in `if(FALSE)` blocks) to focus development on perfecting the water quality functionality first. These features remain in the codebase and can be restored by removing the `if(FALSE)` wrappers marked with `## ARCHIVED` comments.
 
 ## Running the Application
 
@@ -41,14 +43,16 @@ Optional packages for extended functionality:
 
 ## Core Architecture
 
-### Three-Tab Design
-The app has three independent but structurally similar data collection workflows:
-1. **Water Quality** - USGS Water Quality Portal via `dataRetrieval` package
-2. **Air Quality** - EPA AQS Data Mart via `RAQSAPI` package (demo mode implemented)
-3. **Weather & Climate** - Multiple datasets via `climateR` package
+### Current Design: Water Quality Focus
+The app currently features a single-tab design focused on water quality data:
+1. **Water Quality** (Active) - USGS Water Quality Portal via `dataRetrieval` package
+2. **Air Quality** (Archived) - EPA AQS Data Mart via `RAQSAPI` package
+3. **Weather & Climate** (Archived) - Multiple datasets via `climateR` package
 
-### Shared Pattern Across All Tabs
-Each tab follows this structure:
+The archived tabs (Air Quality and Weather) remain in the codebase but are disabled with `if(FALSE)` wrappers. They can be restored by searching for `## ARCHIVED` comments and removing the wrappers.
+
+### Water Quality Tab Pattern
+The active water quality tab follows this structure:
 - **Location Selection**: State → County dropdowns using comprehensive FIPS crosswalk
 - **Parameter Selection**: Checkboxes for different measurements
 - **Year Range**: Slider for temporal filtering

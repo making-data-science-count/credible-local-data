@@ -1,10 +1,12 @@
 # CREDIBLE Local Data Collection Tool
 
-A Shiny web application for collecting environmental data (water quality, air quality, weather/climate) for educational purposes. This tool fetches data from multiple federal APIs and exports it as CSV or directly to CODAP for interactive analysis.
+A Shiny web application for collecting water quality data for educational purposes. This tool fetches data from the USGS Water Quality Portal and exports it as CSV or directly to CODAP for interactive analysis.
+
+> **Note:** This version focuses on water quality data. Air quality and weather/climate features are temporarily archived as we refine the core functionality.
 
 ## Features
 
-- **Three Data Types**: Water quality (USGS), air quality (EPA), and weather/climate (NOAA)
+- **Water Quality Data**: Fetch data from USGS Water Quality Portal for five key parameters (Nitrate, Nitrite, pH, Turbidity, Total Phosphorus)
 - **Complete US Coverage**: Choose from dropdown menus with **ALL 3,000+ US counties, parishes, and boroughs** (no need to look up FIPS codes!)
 - **Comprehensive Geographic Support**: Every county in all 50 states, plus Louisiana parishes, Alaska boroughs, and US territories
 - **CODAP Integration**: Send data directly to CODAP for interactive student analysis (see [CODAP Integration](#codap-integration) below)
@@ -161,6 +163,25 @@ credible-local-data/
 For questions about water quality data or FIPS codes:
 - USGS Water Data: https://waterdata.usgs.gov/
 - EPA Water Quality Portal: https://www.epa.gov/waterdata/water-quality-portal
+
+## Development Roadmap
+
+### Current Focus: Water Quality
+This version focuses exclusively on water quality data to ensure a robust, well-tested core feature before expanding.
+
+### Archived Features
+The following features are temporarily disabled but preserved in the code:
+- **Air Quality**: EPA AQS data integration
+- **Weather & Climate**: NOAA/climateR data integration
+
+These features can be restored by developers by removing `if(FALSE)` wrappers in `app.R`. Look for comments marked `## ARCHIVED`.
+
+### Future Plans
+Once water quality functionality is perfected, we plan to:
+1. Restore and refine air quality data collection
+2. Restore and refine weather/climate data collection
+3. Add additional water quality parameters
+4. Enhance CODAP integration features
 
 ## License
 

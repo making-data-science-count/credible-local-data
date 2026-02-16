@@ -177,8 +177,9 @@ ui <- dashboardPage(
   dashboardSidebar(
     sidebarMenu(
       menuItem("Water Quality", tabName = "water", icon = icon("water")),
-      menuItem("Air Quality", tabName = "air", icon = icon("wind")),
-      menuItem("Weather & Climate", tabName = "weather", icon = icon("cloud-sun")),
+      ## ARCHIVED: Focusing on Water Quality first - restore these later
+      # menuItem("Air Quality", tabName = "air", icon = icon("wind")),
+      # menuItem("Weather & Climate", tabName = "weather", icon = icon("cloud-sun")),
       menuItem("About", tabName = "about", icon = icon("info-circle"))
     )
   ),
@@ -187,67 +188,94 @@ ui <- dashboardPage(
     # Include custom CSS
     tags$head(
       tags$style(HTML(custom_css)),
-      
-      # ============================================================================
-      # CODAP DATA INTERACTIVE PLUGIN API INTEGRATION - JavaScript
-      # ============================================================================
+      tags$script(src="https://unpkg.com/iframe-phone@1.4.0/dist/iframe-phone.js"),
       tags$script(HTML("
+        // Initialize CODAP connection using IFramePhone
+        var codapPhone = null;
+        var codapConnectionInitialized = false;
+
+        function initCodapConnection() {
+          if (codapConnectionInitialized) return;
+
+          try {
+            console.log('Initializing CODAP connection with IFramePhone...');
+
+            // Check if IFramePhone is available
+            if (typeof iframePhone === 'undefined') {
+              console.error('IFramePhone library not loaded');
+              return;
+            }
+
+            // Create phone connection to CODAP
+            codapPhone = new iframePhone.IframePhoneRpcEndpoint(
+              function(command, callback) {
+                // Handler for messages FROM CODAP (we don't expect any in this simple case)
+                console.log('Received message from CODAP:', command);
+                if (callback) callback({success: true});
+              },
+              'data-interactive',
+              window.parent
+            );
+
+            codapConnectionInitialized = true;
+            console.log('CODAP connection established successfully');
+          } catch (e) {
+            console.error('Error initializing CODAP connection:', e);
+          }
+        }
+
+        // Call init when page loads
+        window.addEventListener('load', function() {
+          initCodapConnection();
+        });
+
         // CODAP Interface Helper Function
-        // This function sends messages to CODAP using the Data Interactive Plugin API
+        // This function sends messages to CODAP using the Data Interactive Plugin API via IFramePhone
         function codapInterface(action, resource, values) {
           return new Promise(function(resolve, reject) {
             // Check if running inside CODAP (has a parent frame different from self)
             if (window === window.parent) {
               console.warn('Not running inside CODAP - no parent frame detected');
               reject({
-                error: 'Not running in CODAP', 
+                error: 'Not running in CODAP',
                 message: 'This app must be embedded in CODAP to use the Send to CODAP feature. Please open CODAP at codap.concord.org and add this app as a Data Interactive plugin.',
                 helpUrl: 'https://codap.concord.org/'
               });
               return;
             }
-            
-            var requestId = 'req_' + Math.random().toString(36).substr(2, 9);
-            
+
+            // Initialize connection if not already done
+            if (!codapConnectionInitialized) {
+              initCodapConnection();
+            }
+
+            // Check if phone is available
+            if (!codapPhone) {
+              reject({
+                error: 'CODAP connection not established',
+                message: 'Unable to establish connection with CODAP. Make sure you are using the latest CODAP version.',
+                helpUrl: 'https://codap.concord.org/'
+              });
+              return;
+            }
+
             var message = {
               action: action,
               resource: resource,
               values: values
             };
-            
-            console.log('Sending to CODAP:', message);
-            
-            // Send message to CODAP parent frame
-            window.parent.postMessage({
-              message: message,
-              requestId: requestId
-            }, '*');
-            
-            // Listen for response from CODAP
-            var responseHandler = function(event) {
-              if (event.data && event.data.requestId === requestId) {
-                window.removeEventListener('message', responseHandler);
-                if (event.data.success) {
-                  console.log('CODAP Response Success:', event.data);
-                  resolve(event.data);
-                } else {
-                  console.error('CODAP Response Error:', event.data);
-                  reject(event.data);
-                }
+
+            console.log('Sending to CODAP via IFramePhone:', message);
+
+            // Send via IFramePhone
+            codapPhone.call(message, function(response) {
+              console.log('CODAP Response:', response);
+              if (response && response.success) {
+                resolve(response);
+              } else {
+                reject(response || {error: 'Unknown error', message: 'CODAP returned an error'});
               }
-            };
-            
-            window.addEventListener('message', responseHandler);
-            
-            // Timeout after 10 seconds
-            setTimeout(function() {
-              window.removeEventListener('message', responseHandler);
-              reject({
-                error: 'CODAP request timeout',
-                message: 'CODAP did not respond within 10 seconds. Try refreshing the page or check browser console for errors. Make sure you are using the latest CODAP version.',
-                helpUrl: 'https://codap.concord.org/'
-              });
-            }, 10000);
+            });
           });
         }
         
@@ -477,374 +505,9 @@ ui <- dashboardPage(
                 )
               )
       ),
-      
-      # Air Quality Tab
-      tabItem(tabName = "air",
-              fluidRow(
-                box(
-                  title = "Access Air Quality Data", status = "primary", solidHeader = TRUE, width = 12,
-                  fluidRow(
-                    column(3,
-                           selectInput("air_state_selection", "Select State:", 
-                                       choices = c("Choose a state..." = "", 
-                                                   setNames(states_df$state_name, states_df$state_name)),
-                                       selected = "Tennessee")
-                    ),
-                    column(3,
-                           selectInput("air_county_selection", "Select County:", 
-                                       choices = c("Choose a county..." = ""))
-                    ),
-                    column(3,
-                           sliderInput("air_year_selection", "Select Year Range:",
-                                       min = 1960, max = 2024, 
-                                       value = c(2023, 2024),
-                                       step = 1, sep = "")
-                    )
-                  ),
-                  
-                  # Air Quality Parameters Selection
-                  hr(),
-                  h4("Select Air Quality Parameters"),
-                  p("Choose which air quality parameters to fetch. Default selection focuses on criteria pollutants."),
-                  fluidRow(
-                    column(6,
-                           h5("Criteria Pollutants"),
-                           checkboxGroupInput("air_parameters_criteria", NULL,
-                                              choices = c("PM2.5 (Fine particles)" = "88101",
-                                                          "PM10 (Coarse particles)" = "81102", 
-                                                          "Ozone" = "44201",
-                                                          "Nitrogen dioxide (NO2)" = "42602",
-                                                          "Sulfur dioxide (SO2)" = "42401",
-                                                          "Carbon monoxide (CO)" = "42101"),
-                                              selected = c("88101", "81102", "44201"),
-                                              inline = FALSE)
-                    ),
-                    column(6,
-                           h5("Additional Parameters"),
-                           checkboxGroupInput("air_parameters_additional", NULL,
-                                              choices = c("Lead (Pb)" = "14129",
-                                                          "Temperature" = "68105",
-                                                          "Wind Speed" = "61103",
-                                                          "Wind Direction" = "61104",
-                                                          "Relative Humidity" = "62101",
-                                                          "Barometric Pressure" = "65101"),
-                                              selected = c(),
-                                              inline = FALSE)
-                    )
-                  ),
-                  
-                  fluidRow(
-                    column(3,
-                           br(),
-                           actionButton("fetch_air_data", "Fetch Air Quality Data", 
-                                        class = "btn-primary", icon = icon("download")),
-                           br(), br(),
-                           actionButton("refresh_air_data", "Refresh/Clear", 
-                                        class = "btn-warning", icon = icon("refresh"))
-                    )
-                  ),
 
-                  hr(),
-                  fluidRow(
-                    column(6,
-                           p(strong("Selected Location:"), textOutput("air_location_display", inline = TRUE))
-                    ),
-                    column(6,
-                           p(strong("FIPS Codes:"), textOutput("air_fips_display", inline = TRUE))
-                    )
-                  ),
-                  
-                  # Data Processing Status
-                  hr(),
-                  h4("Data Processing Status"),
-                  verbatimTextOutput("air_status_text"),
-                  
-                  # Site selector - only show after data is fetched
-                  conditionalPanel(
-                    condition = "output.air_data_fetched == true",
-                    hr(),
-                    h4("Site Selection"),
-                    fluidRow(
-                      column(8,
-                             selectInput("air_site_selection", "Select Site(s) for Selected Location:", 
-                                         choices = c("All sites" = "all"),
-                                         selected = "all",
-                                         multiple = TRUE)
-                      ),
-                      column(4,
-                             br(),
-                             p("Select specific monitoring sites within your chosen location for focused analysis.")
-                      )
-                    )
-                  )
-                )
-              ),
-              
-              # Loading indicator
-              conditionalPanel(
-                condition = "output.air_loading_visible == true",
-                fluidRow(
-                  box(
-                    title = "Data Processing", status = "primary", solidHeader = TRUE, width = 12,
-                    div(class = "loading-container",
-                        div(class = "loading-spinner"),
-                        h4("Fetching Air Quality Data..."),
-                        p("Connecting to EPA AQS Data Mart API and processing data"),
-                        div(class = "progress-bar-custom",
-                            div(class = "progress-bar-fill")
-                        ),
-                        p("This may take 10-60 seconds depending on data availability and timeframe", 
-                          style = "font-size: 12px; margin-top: 10px; opacity: 0.8;")
-                    )
-                  )
-                )
-              ),
-              
-              fluidRow(
-                box(
-                  title = "Data Preview", status = "warning", solidHeader = TRUE, width = 12,
-                  DT::dataTableOutput("air_preview_wide"),
-                  br(),
-                  # ============================================================================
-                  # CODAP EXPORT UI ELEMENTS - Air Quality
-                  # ============================================================================
-                  div(style = "text-align: center; margin-top: 15px; padding: 15px; background-color: #f8f9fa; border-radius: 8px;",
-                      h4("Export Options", style = "margin-bottom: 15px;"),
-                      fluidRow(
-                        column(4,
-                               downloadButton("download_air_data", "Download as CSV", 
-                                              class = "btn-success", icon = icon("download"),
-                                              style = "width: 100%; margin-bottom: 10px;")
-                        ),
-                        column(4,
-                               textInput("codap_air_dataset_name", "CODAP Dataset Name:", 
-                                         value = "AirQualityData",
-                                         placeholder = "Enter dataset name")
-                        ),
-                        column(4,
-                               actionButton("send_air_to_codap", "Send to CODAP", 
-                                            class = "btn-info", icon = icon("share-square"),
-                                            style = "width: 100%; margin-top: 25px;")
-                        )
-                      ),
-                      p("Download data as CSV or send directly to CODAP for interactive analysis", 
-                        style = "margin-top: 10px; font-size: 12px; color: #6c757d;")
-                  )
-                )
-              )
-      ),
-      
-      # Weather & Climate Tab
-      tabItem(tabName = "weather",
-              fluidRow(
-                box(
-                  title = "Access Weather & Climate Data", status = "primary", solidHeader = TRUE, width = 12,
-                  fluidRow(
-                    column(3,
-                           selectInput("weather_state_selection", "Select State:", 
-                                       choices = c("Choose a state..." = "", 
-                                                   setNames(states_df$state_name, states_df$state_name)),
-                                       selected = "Tennessee")
-                    ),
-                    column(3,
-                           selectInput("weather_county_selection", "Select County:", 
-                                       choices = c("Choose a county..." = ""))
-                    ),
-                    column(3,
-                           sliderInput("weather_year_selection", "Select Year Range:",
-                                       min = 1960, max = 2024, 
-                                       value = c(2023, 2024),
-                                       step = 1, sep = "")
-                    )
-                  ),
-                  
-                  # Weather Parameters Selection
-                  hr(),
-                  h4("Select Weather & Climate Dataset"),
-                  p("Choose a weather dataset and variables. climateR provides access to multiple high-quality datasets."),
-                  selectInput("weather_dataset", "Dataset Source:",
-                              choices = c("TerraClimate (Global, Monthly)" = "terraclimate",
-                                          "GridMET (Western US, Daily)" = "gridmet",
-                                          "Daymet (North America, Daily)" = "daymet"),
-                              selected = "terraclimate"),
-                  hr(),
-                  h4("Select Weather Parameters"),
-                  conditionalPanel(
-                    condition = "input.weather_dataset == 'terraclimate'",
-                    fluidRow(
-                      column(6,
-                             h5("Primary Variables"),
-                             checkboxGroupInput("weather_parameters_primary", NULL,
-                                                choices = c("Temperature (max)" = "tmax",
-                                                            "Temperature (min)" = "tmin",
-                                                            "Precipitation" = "ppt",
-                                                            "Vapor pressure deficit" = "vpd"),
-                                                selected = c("tmax", "tmin", "ppt"),
-                                                inline = FALSE)
-                      ),
-                      column(6,
-                             h5("Additional Variables"),
-                             checkboxGroupInput("weather_parameters_additional", NULL,
-                                                choices = c("Wind speed" = "ws",
-                                                            "Solar radiation" = "srad",
-                                                            "Vapor pressure" = "vap",
-                                                            "Soil moisture" = "soil"),
-                                                selected = c(),
-                                                inline = FALSE)
-                      )
-                    )
-                  ),
-                  conditionalPanel(
-                    condition = "input.weather_dataset == 'gridmet'",
-                    fluidRow(
-                      column(6,
-                             h5("Primary Variables"),
-                             checkboxGroupInput("weather_parameters_primary", NULL,
-                                                choices = c("Temperature (max)" = "tmmx",
-                                                            "Temperature (min)" = "tmmn",
-                                                            "Precipitation" = "pr",
-                                                            "Relative humidity (max)" = "rmax"),
-                                                selected = c("tmmx", "tmmn", "pr"),
-                                                inline = FALSE)
-                      ),
-                      column(6,
-                             h5("Additional Variables"),
-                             checkboxGroupInput("weather_parameters_additional", NULL,
-                                                choices = c("Relative humidity (min)" = "rmin",
-                                                            "Wind speed" = "vs",
-                                                            "Solar radiation" = "srad",
-                                                            "Vapor pressure deficit" = "vpd"),
-                                                selected = c(),
-                                                inline = FALSE)
-                      )
-                    )
-                  ),
-                  conditionalPanel(
-                    condition = "input.weather_dataset == 'daymet'",
-              fluidRow(
-                      column(6,
-                             h5("Primary Variables"),
-                             checkboxGroupInput("weather_parameters_primary", NULL,
-                                                choices = c("Temperature (max)" = "tmax",
-                                                            "Temperature (min)" = "tmin",
-                                                            "Precipitation" = "prcp",
-                                                            "Vapor pressure" = "vp"),
-                                                selected = c("tmax", "tmin", "prcp"),
-                                                inline = FALSE)
-                      ),
-                      column(6,
-                             h5("Additional Variables"),
-                             checkboxGroupInput("weather_parameters_additional", NULL,
-                                                choices = c("Solar radiation" = "srad",
-                                                            "Snow water equivalent" = "swe",
-                                                            "Day length" = "dayl"),
-                                                selected = c(),
-                                                inline = FALSE)
-                      )
-                    )
-                  ),
-                  
-                  fluidRow(
-                    column(3,
-                           br(),
-                           actionButton("fetch_weather_data", "Fetch Weather Data", 
-                                        class = "btn-primary", icon = icon("download")),
-                           br(), br(),
-                           actionButton("refresh_weather_data", "Refresh/Clear", 
-                                        class = "btn-warning", icon = icon("refresh"))
-                    )
-                  ),
+      ## ARCHIVED: Air Quality and Weather tabs removed - see git history or ARCHIVED_FEATURES.md to restore
 
-                  hr(),
-        fluidRow(
-                    column(6,
-                           p(strong("Selected Location:"), textOutput("weather_location_display", inline = TRUE))
-                    ),
-                    column(6,
-                           p(strong("FIPS Codes:"), textOutput("weather_fips_display", inline = TRUE))
-                    )
-                  ),
-                  
-                  # Data Processing Status
-                  hr(),
-                  h4("Data Processing Status"),
-                  verbatimTextOutput("weather_status_text"),
-                  
-                  # Site selector - only show after data is fetched
-                  conditionalPanel(
-                    condition = "output.weather_data_fetched == true",
-                    hr(),
-                    h4("Weather Station Selection"),
-                    fluidRow(
-                      column(8,
-                             selectInput("weather_station_selection", "Select Weather Station(s) for Selected Location:", 
-                                         choices = c("All stations" = "all"),
-                                         selected = "all",
-                                         multiple = TRUE)
-                      ),
-                      column(4,
-                             br(),
-                             p("Select specific weather stations within your chosen location for focused analysis.")
-                      )
-            )
-          )
-        )
-      ),
-      
-              # Loading indicator
-              conditionalPanel(
-                condition = "output.weather_loading_visible == true",
-        fluidRow(
-          box(
-                    title = "Data Processing", status = "primary", solidHeader = TRUE, width = 12,
-                    div(class = "loading-container",
-                        div(class = "loading-spinner"),
-                        h4("Fetching Weather Data..."),
-                        p("Connecting to NOAA weather stations and processing data"),
-                        div(class = "progress-bar-custom",
-                            div(class = "progress-bar-fill")
-                        ),
-                        p("This may take 10-60 seconds depending on data availability and timeframe", 
-                          style = "font-size: 12px; margin-top: 10px; opacity: 0.8;")
-            )
-          )
-        )
-      ),
-      
-        fluidRow(
-          box(
-                  title = "Data Preview", status = "warning", solidHeader = TRUE, width = 12,
-                  DT::dataTableOutput("weather_preview_wide"),
-                  br(),
-                  # ============================================================================
-                  # CODAP EXPORT UI ELEMENTS - Weather & Climate
-                  # ============================================================================
-                  div(style = "text-align: center; margin-top: 15px; padding: 15px; background-color: #f8f9fa; border-radius: 8px;",
-                      h4("Export Options", style = "margin-bottom: 15px;"),
-                      fluidRow(
-                        column(4,
-                               downloadButton("download_weather_data", "Download as CSV", 
-                                              class = "btn-success", icon = icon("download"),
-                                              style = "width: 100%; margin-bottom: 10px;")
-                        ),
-                        column(4,
-                               textInput("codap_weather_dataset_name", "CODAP Dataset Name:", 
-                                         value = "WeatherData",
-                                         placeholder = "Enter dataset name")
-                        ),
-                        column(4,
-                               actionButton("send_weather_to_codap", "Send to CODAP", 
-                                            class = "btn-info", icon = icon("share-square"),
-                                            style = "width: 100%; margin-top: 25px;")
-                        )
-                      ),
-                      p("Download data as CSV or send directly to CODAP for interactive analysis", 
-                        style = "margin-top: 10px; font-size: 12px; color: #6c757d;")
-            )
-          )
-        )
-      ),
-      
       # About Tab
       tabItem(tabName = "about",
         fluidRow(
@@ -876,27 +539,29 @@ server <- function(input, output, session) {
       current_county_fips = "",
       current_location = "",
       loading_visible = FALSE,
-      available_sites = NULL,
-      
-      # Air quality data
-      air_wide_data = NULL,
-      air_data_fetched = FALSE,
-      air_status = "Ready to fetch air quality data...",
-      air_current_state_fips = "",
-      air_current_county_fips = "",
-      air_current_location = "",
-      air_loading_visible = FALSE,
-      air_available_sites = NULL,
-      
-      # Weather data
-      weather_wide_data = NULL,
-      weather_data_fetched = FALSE,
-      weather_status = "Ready to fetch weather data...",
-      weather_current_state_fips = "",
-      weather_current_county_fips = "",
-      weather_current_location = "",
-      weather_loading_visible = FALSE,
-      weather_available_stations = NULL
+      available_sites = NULL
+
+      ## ARCHIVED: Air quality and Weather reactive values
+      ## To restore: Uncomment the sections below
+      # # Air quality data
+      # air_wide_data = NULL,
+      # air_data_fetched = FALSE,
+      # air_status = "Ready to fetch air quality data...",
+      # air_current_state_fips = "",
+      # air_current_county_fips = "",
+      # air_current_location = "",
+      # air_loading_visible = FALSE,
+      # air_available_sites = NULL,
+      #
+      # # Weather data
+      # weather_wide_data = NULL,
+      # weather_data_fetched = FALSE,
+      # weather_status = "Ready to fetch weather data...",
+      # weather_current_state_fips = "",
+      # weather_current_county_fips = "",
+      # weather_current_location = "",
+      # weather_loading_visible = FALSE,
+      # weather_available_stations = NULL
     )
     
     # Make loading_visible available as an input for the conditional panel
@@ -1367,11 +1032,12 @@ server <- function(input, output, session) {
         }
       }
     })
-    
+
     # =============================================================================
-    # AIR QUALITY SERVER LOGIC
+    ## ARCHIVED: AIR QUALITY SERVER LOGIC - Focusing on Water Quality first
+    ## To restore: Remove the if(FALSE) wrapper
     # =============================================================================
-    
+    if(FALSE) {
     # Update air quality county choices when state changes
     observeEvent(input$air_state_selection, {
       if (input$air_state_selection != "") {
@@ -1709,11 +1375,13 @@ server <- function(input, output, session) {
         duration = 3
       )
     })
-    
+    } # End if(FALSE) - Air Quality server logic archived
+
     # =============================================================================
-    # WEATHER & CLIMATE SERVER LOGIC
+    ## ARCHIVED: WEATHER & CLIMATE SERVER LOGIC - Focusing on Water Quality first
+    ## To restore: Remove the if(FALSE) wrapper
     # =============================================================================
-    
+    if(FALSE) {
     # Update weather county choices when state changes
     observeEvent(input$weather_state_selection, {
       if (input$weather_state_selection != "") {
@@ -2121,6 +1789,7 @@ server <- function(input, output, session) {
         duration = 3
       )
     })
+    } # End if(FALSE) - Weather & Climate server logic archived
 }
 
 # Run the application

@@ -1,15 +1,13 @@
-# Water Quality Data Collection Tool
+# CREDIBLE Local Data Collection Tool
 
-A Shiny web application that allows teachers to collect local water quality data for educational purposes. This tool fetches data from the USGS Water Quality Portal and processes it into three different formats for classroom use.
+A Shiny web application for collecting environmental data (water quality, air quality, weather/climate) for educational purposes. This tool fetches data from multiple federal APIs and exports it as CSV or directly to CODAP for interactive analysis.
 
 ## Features
 
+- **Three Data Types**: Water quality (USGS), air quality (EPA), and weather/climate (NOAA)
 - **Complete US Coverage**: Choose from dropdown menus with **ALL 3,000+ US counties, parishes, and boroughs** (no need to look up FIPS codes!)
 - **Comprehensive Geographic Support**: Every county in all 50 states, plus Louisiana parishes, Alaska boroughs, and US territories
-- **Multiple Data Formats**: Get data in three different formats:
-  - Wide format (raw data with site information)
-  - Quarterly raw (aggregated by quarter with means)
-  - Quarterly complete (only complete quarters with no missing data)
+- **CODAP Integration**: Send data directly to CODAP for interactive student analysis (see [CODAP Integration](#codap-integration) below)
 - **Interactive Preview**: View data before downloading
 - **Smart Downloads**: Files automatically named with location and date
 - **User-Friendly Interface**: Real-time status updates and location confirmation
@@ -22,6 +20,31 @@ The app collects data for five key water quality parameters:
 - pH
 - Turbidity
 - Total Phosphorus
+
+## CODAP Integration
+
+This app includes seamless integration with **CODAP** (Common Online Data Analysis Platform), allowing students to analyze environmental data interactively.
+
+### What is CODAP?
+CODAP is a free, web-based data analysis tool designed for education. Students can create graphs, perform statistical analysis, and explore data patterns interactively.
+
+### How to Use with CODAP
+
+1. **Deploy your app** to shinyapps.io or run locally
+2. **Open CODAP** at https://codap.concord.org/
+3. **Add your app** as a Data Interactive plugin in CODAP
+4. **Fetch data** in your app (water, air, or weather data)
+5. **Click "Send to CODAP"** - data appears instantly in CODAP!
+
+### Documentation
+
+- **[CODAP_INTEGRATION.md](CODAP_INTEGRATION.md)** - Complete user guide with deployment, embedding, and troubleshooting
+- **[CODAP_TECHNICAL.md](CODAP_TECHNICAL.md)** - Technical reference for developers
+- **[UI_CHANGES_VISUAL_GUIDE.md](UI_CHANGES_VISUAL_GUIDE.md)** - Visual guide to the interface
+
+### Alternative: CSV Download
+
+If you prefer not to use CODAP integration, you can still download data as CSV files and import them into CODAP (or any other analysis tool) manually.
 
 ## Installation
 

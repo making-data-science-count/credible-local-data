@@ -471,16 +471,6 @@ ui <- dashboardPage(
                     )
                   ),
 
-                  hr(),
-                  fluidRow(
-                    column(6,
-                           p(strong("Selected Location:"), textOutput("location_display", inline = TRUE))
-                    ),
-                    column(6,
-                           p(strong("FIPS Codes:"), textOutput("fips_display", inline = TRUE))
-                    )
-                  ),
-                  
                   # Data Processing Status
                   hr(),
                   h4("Data Processing Status"),

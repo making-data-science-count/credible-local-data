@@ -555,8 +555,9 @@ ui <- dashboardPage(
               ),
 
     # Footer
-    div(style = "text-align: center; padding: 16px 0 8px 0;",
-      tags$img(src = "images/credible-logo.png", height = "60px", style = "display: block; margin: 0 auto 6px auto;"),
+    div(style = "text-align: center; padding: 16px 0 12px 0;",
+      tags$img(src = "images/credible-logo.png", height = "100px",
+               style = "display: block; margin: 0 auto 8px auto; mix-blend-mode: multiply;"),
       tags$a(href = "https://projectcredible.com", target = "_blank",
              style = "font-size: 12px; color: #3B7A8C;", "projectcredible.com")
     )

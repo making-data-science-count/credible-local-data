@@ -70,9 +70,68 @@ states_df <- fips_clean %>%
   distinct(state_name, state_fips) %>%
   arrange(state_name)
 
-# Simplified CSS theme
+# CREDIBLE Brand Colors
+# Primary (Coral Red): #E63946
+# Secondary (Teal): #60C5BA
+# Accent (Sage Green): #7A9B76
+# Warning (Orange): #F4A261
+# Dark: #2D3142
+
 custom_css <- "
-/* Simple loading spinner */
+/* CREDIBLE Brand Color Overrides */
+.skin-blue .main-header .navbar {
+  background-color: #E63946 !important;
+}
+
+.skin-blue .main-header .logo {
+  background-color: #C8102E !important;
+}
+
+.skin-blue .main-header .logo:hover {
+  background-color: #A00D24 !important;
+}
+
+/* Primary box headers - Teal */
+.box.box-solid.box-primary > .box-header {
+  background-color: #60C5BA !important;
+  color: white !important;
+}
+
+.box.box-primary {
+  border-top-color: #60C5BA !important;
+}
+
+/* Warning box headers - Orange */
+.box.box-solid.box-warning > .box-header {
+  background-color: #F4A261 !important;
+  color: white !important;
+}
+
+.box.box-warning {
+  border-top-color: #F4A261 !important;
+}
+
+/* Info box headers - Sage Green */
+.box.box-solid.box-info > .box-header {
+  background-color: #7A9B76 !important;
+  color: white !important;
+}
+
+.box.box-info {
+  border-top-color: #7A9B76 !important;
+}
+
+/* Success box headers - Darker Teal */
+.box.box-solid.box-success > .box-header {
+  background-color: #4DACAA !important;
+  color: white !important;
+}
+
+.box.box-success {
+  border-top-color: #4DACAA !important;
+}
+
+/* Loading spinner */
 .loading-container {
   text-align: center;
   padding: 30px;
@@ -88,7 +147,7 @@ custom_css <- "
   height: 40px;
   border: 3px solid #f3f3f3;
   border-radius: 50%;
-  border-top-color: #007bff;
+  border-top-color: #60C5BA;
   animation: spin 1s ease-in-out infinite;
   margin-bottom: 15px;
 }
@@ -97,7 +156,7 @@ custom_css <- "
   to { transform: rotate(360deg); }
 }
 
-/* Simple progress bar */
+/* Progress bar */
 .progress-bar-custom {
   width: 100%;
   height: 6px;
@@ -109,7 +168,7 @@ custom_css <- "
 
 .progress-bar-fill {
   height: 100%;
-  background-color: #007bff;
+  background-color: #60C5BA;
   border-radius: 3px;
   animation: progress 3s ease-in-out infinite;
 }
@@ -120,27 +179,70 @@ custom_css <- "
   100% { width: 100%; }
 }
 
-/* Clean header styling */
+/* Header styling */
 .main-header .navbar-brand {
   color: white !important;
   font-weight: bold !important;
   padding: 15px !important;
 }
 
-/* Simple status text */
+/* Status text */
 #status_text {
   background-color: #f8f9fa;
-  border-left: 4px solid #007bff;
+  border-left: 4px solid #60C5BA;
   padding: 15px;
   border-radius: 4px;
   font-family: monospace;
 }
 
-/* Clean box styling */
+/* Box styling */
 .box {
   border-radius: 6px !important;
   box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
   margin-bottom: 20px !important;
+}
+
+/* Button styling */
+.btn-primary {
+  background-color: #60C5BA !important;
+  border-color: #4DACAA !important;
+}
+
+.btn-primary:hover {
+  background-color: #4DACAA !important;
+  border-color: #3D9C9A !important;
+}
+
+.btn-info {
+  background-color: #7A9B76 !important;
+  border-color: #6A8A66 !important;
+}
+
+.btn-info:hover {
+  background-color: #6A8A66 !important;
+  border-color: #5A7956 !important;
+}
+
+.btn-warning {
+  background-color: #F4A261 !important;
+  border-color: #E08D4C !important;
+  color: white !important;
+}
+
+.btn-warning:hover {
+  background-color: #E08D4C !important;
+  border-color: #CC7A3C !important;
+  color: white !important;
+}
+
+.btn-success {
+  background-color: #7A9B76 !important;
+  border-color: #6A8A66 !important;
+}
+
+.btn-success:hover {
+  background-color: #6A8A66 !important;
+  border-color: #5A7956 !important;
 }
 
 /* Advanced options styling */
@@ -156,12 +258,22 @@ summary {
   font-weight: bold;
   cursor: pointer;
   margin-bottom: 10px;
+  color: #2D3142;
 }
 
 details[open] summary {
   margin-bottom: 15px;
   padding-bottom: 10px;
   border-bottom: 1px solid #dee2e6;
+}
+
+/* Link colors */
+a {
+  color: #60C5BA !important;
+}
+
+a:hover {
+  color: #4DACAA !important;
 }
 "
 
@@ -174,15 +286,7 @@ ui <- dashboardPage(
     title = "CREDIBLE Local Data"
   ),
   
-  dashboardSidebar(
-    sidebarMenu(
-      menuItem("Water Quality", tabName = "water", icon = icon("water")),
-      ## ARCHIVED: Focusing on Water Quality first - restore these later
-      # menuItem("Air Quality", tabName = "air", icon = icon("wind")),
-      # menuItem("Weather & Climate", tabName = "weather", icon = icon("cloud-sun")),
-      menuItem("About", tabName = "about", icon = icon("info-circle"))
-    )
-  ),
+  dashboardSidebar(disable = TRUE),
   
   dashboardBody(
     # Include custom CSS
@@ -344,11 +448,9 @@ ui <- dashboardPage(
         console.log('CODAP interface initialized');
       "))
     ),
-    
-    tabItems(
-      # Water Quality Tab
-      tabItem(tabName = "water",
-              fluidRow(
+
+    # Water Quality Data Collection
+    fluidRow(
                 box(
                   title = "Access Data", status = "primary", solidHeader = TRUE, width = 12,
                   fluidRow(
@@ -359,8 +461,14 @@ ui <- dashboardPage(
                                        selected = "Tennessee")
                     ),
                     column(3,
-                           selectInput("county_selection", "Select County:", 
-                                       choices = c("Choose a county..." = ""))
+                           selectizeInput("county_selection", "Select County/Counties:",
+                                       choices = {
+                                         tn <- fips_clean[fips_clean$state_name == "Tennessee", "county_display", drop = TRUE]
+                                         setNames(tn, tn)
+                                       },
+                                       selected = "Knox County",
+                                       multiple = TRUE,
+                                       options = list(placeholder = "Select one or more counties"))
                     ),
                     column(3,
                            sliderInput("year_selection", "Select Year Range:",
@@ -497,44 +605,32 @@ ui <- dashboardPage(
                   # ============================================================================
                   # CODAP EXPORT UI ELEMENTS - Water Quality
                   # ============================================================================
-                  div(style = "text-align: center; margin-top: 15px; padding: 15px; background-color: #f8f9fa; border-radius: 8px;",
-                      h4("Export Options", style = "margin-bottom: 15px;"),
-                      fluidRow(
-                        column(4,
-                               downloadButton("download_wide", "Download as CSV", 
-                                              class = "btn-success", icon = icon("download"),
-                                              style = "width: 100%; margin-bottom: 10px;")
-                        ),
-                        column(4,
-                               textInput("codap_dataset_name", "CODAP Dataset Name:", 
-                                         value = "WaterQualityData",
-                                         placeholder = "Enter dataset name")
-                        ),
-                        column(4,
-                               actionButton("send_to_codap", "Send to CODAP", 
-                                            class = "btn-info", icon = icon("share-square"),
-                                            style = "width: 100%; margin-top: 25px;")
+                  div(style = "margin-top: 15px; padding: 12px 15px; background-color: #f8f9fa; border-radius: 8px;",
+                      div(style = "display: flex; align-items: flex-end; gap: 10px;",
+                        downloadButton("download_wide", "Download as CSV",
+                                       class = "btn-success", icon = icon("download")),
+                        div(style = "margin-left: auto; display: flex; align-items: flex-end; gap: 8px;",
+                          div(style = "width: 220px;",
+                            textInput("codap_dataset_name", "CODAP Dataset Name:",
+                                      value = "WaterQualityData",
+                                      placeholder = "Enter dataset name")
+                          ),
+                          actionButton("send_to_codap", "Send to CODAP",
+                                       class = "btn-info", icon = icon("share-square"))
                         )
-                      ),
-                      p("Download data as CSV or send directly to CODAP for interactive analysis", 
-                        style = "margin-top: 10px; font-size: 12px; color: #6c757d;")
+                      )
                   )
                 )
-              )
-      ),
+              ),
 
-      ## ARCHIVED: Air Quality and Weather tabs removed - see git history or ARCHIVED_FEATURES.md to restore
-
-      # About Tab
-      tabItem(tabName = "about",
-        fluidRow(
-          box(
-            title = "About CREDIBLE Local Data", status = "primary", solidHeader = TRUE, width = 12,
-            div(style = "padding: 20px; text-align: center;",
-              tags$img(src = "images/credible-logo.png", height = "250px", style = "margin-bottom: 30px;"),
-              h3("CREDIBLE Local Data Collection Tool"),
-              p("See more related information at https://projectcredible.com")
-            )
+    # About Section
+    fluidRow(
+      box(
+        title = "About", status = "primary", solidHeader = TRUE, width = 12,
+        div(style = "padding: 8px 20px; text-align: center;",
+          tags$img(src = "images/credible-logo.png", height = "80px", style = "margin-bottom: 8px;"),
+          p(style = "margin: 0; font-size: 12px;",
+            tags$a(href = "https://projectcredible.com", target = "_blank", "projectcredible.com")
           )
         )
       )
@@ -622,25 +718,24 @@ server <- function(input, output, session) {
       if (input$state_selection != "") {
         # Get state FIPS code
         state_info <- states_df[states_df$state_name == input$state_selection, ]
-        
+
         if (nrow(state_info) > 0) {
           # Filter counties for this state
           counties_for_state <- fips_clean %>%
             filter(state_fips == state_info$state_fips) %>%
             arrange(county_name)
-          
-          county_choices <- c("Choose a county..." = "", 
-                              setNames(counties_for_state$county_display, counties_for_state$county_display))
-          
+
+          county_choices <- setNames(counties_for_state$county_display, counties_for_state$county_display)
+
           # Set default to Knox County if Tennessee is selected
-          default_county <- if(input$state_selection == "Tennessee") "Knox County" else ""
-          
+          default_county <- if(input$state_selection == "Tennessee") "Knox County" else character(0)
+
         } else {
-          county_choices <- c("State not found" = "")
-          default_county <- ""
+          county_choices <- c()
+          default_county <- character(0)
         }
-        
-        updateSelectInput(session, "county_selection", choices = county_choices, selected = default_county)
+
+        updateSelectizeInput(session, "county_selection", choices = county_choices, selected = default_county)
       }
     })
     
@@ -654,11 +749,10 @@ server <- function(input, output, session) {
             counties_for_state <- fips_clean %>%
               filter(state_fips == state_info$state_fips) %>%
               arrange(county_name)
-            
-            county_choices <- c("Choose a county..." = "", 
-                                setNames(counties_for_state$county_display, counties_for_state$county_display))
-            
-            updateSelectInput(session, "county_selection", choices = county_choices, selected = "Knox County")
+
+            county_choices <- setNames(counties_for_state$county_display, counties_for_state$county_display)
+
+            updateSelectizeInput(session, "county_selection", choices = county_choices, selected = "Knox County")
           }
         })
       }
@@ -677,24 +771,31 @@ server <- function(input, output, session) {
     
     # Display current selection
     output$location_display <- renderText({
-      if (input$state_selection != "" && input$county_selection != "") {
-        # Since county_display now shows the full name, use it directly
-        paste(input$county_selection, ",", input$state_selection)
+      if (input$state_selection != "" && !is.null(input$county_selection) && length(input$county_selection) > 0) {
+        if (length(input$county_selection) == 1) {
+          paste(input$county_selection, ",", input$state_selection)
+        } else {
+          paste0(paste(input$county_selection, collapse = ", "), ", ", input$state_selection)
+        }
       } else {
         "None selected"
       }
     })
     
-    # Display FIPS codes  
+    # Display FIPS codes
     output$fips_display <- renderText({
-      if (input$state_selection != "" && input$county_selection != "") {
-        # Find the county info
+      if (input$state_selection != "" && !is.null(input$county_selection) && length(input$county_selection) > 0) {
+        # Find the county info for all selected counties
         county_info <- fips_clean %>%
           filter(state_name == input$state_selection,
-                 county_display == input$county_selection)
-        
+                 county_display %in% input$county_selection)
+
         if (nrow(county_info) > 0) {
-          paste("State:", county_info$state_fips, "County:", county_info$county_fips, "Full:", county_info$full_fips)
+          if (nrow(county_info) == 1) {
+            paste("State:", county_info$state_fips, "County:", county_info$county_fips, "Full:", county_info$full_fips)
+          } else {
+            paste0("State: ", county_info$state_fips[1], " | Counties: ", paste(county_info$county_fips, collapse = ", "))
+          }
         } else {
           "Codes not found"
         }
@@ -707,29 +808,37 @@ server <- function(input, output, session) {
     observeEvent(input$fetch_data, {
       
       # Validate inputs
-      if (input$state_selection == "" || input$county_selection == "") {
-        showNotification("Please select both state and county", type = "error", duration = 5)
+      if (input$state_selection == "" || is.null(input$county_selection) || length(input$county_selection) == 0) {
+        showNotification("Please select state and at least one county", type = "error", duration = 5)
         return()
       }
       
       # Show loading indicator
       values$loading_visible <- TRUE
-      
-      # Get FIPS codes
+
+      # Get FIPS codes for all selected counties
       county_info <- fips_clean %>%
         filter(state_name == input$state_selection,
-               county_display == input$county_selection)
-      
+               county_display %in% input$county_selection)
+
       if (nrow(county_info) == 0) {
         showNotification("County not found in database. Please try again.", type = "error", duration = 5)
         values$loading_visible <- FALSE
         return()
       }
-      
-      values$current_state_fips <- county_info$state_fips
+
+      # Store state FIPS (same for all counties in a state)
+      values$current_state_fips <- county_info$state_fips[1]
+
+      # Store county FIPS as a vector for multiple counties
       values$current_county_fips <- county_info$county_fips
-      # Since county_display now shows the full name, use it directly
-      values$current_location <- paste(input$county_selection, input$state_selection, sep = ", ")
+
+      # Build location display
+      values$current_location <- if (length(input$county_selection) == 1) {
+        paste(input$county_selection, input$state_selection, sep = ", ")
+      } else {
+        paste0(paste(input$county_selection, collapse = ", "), ", ", input$state_selection)
+      }
       
       fetch_water_data()
     })
@@ -751,9 +860,9 @@ server <- function(input, output, session) {
       
       # Reset input selections
       updateSelectInput(session, "state_selection", selected = "")
-      updateSelectInput(session, "county_selection", 
-                        choices = c("Choose a county..." = ""),
-                        selected = "")
+      updateSelectizeInput(session, "county_selection",
+                        choices = c("Choose county/counties..." = ""),
+                        selected = character(0))
       updateSliderInput(session, "year_selection", value = c(2023, 2025))
       updateCheckboxGroupInput(session, "parameters_primary",
                                selected = c("pH", "Turbidity"))
@@ -775,8 +884,8 @@ server <- function(input, output, session) {
       values$status <- "Fetching data from Water Quality Portal..."
       
       tryCatch({
-        # Build county code
-        county_code <- paste0("US:", values$current_state_fips, ":", values$current_county_fips)
+        # Build county codes for all selected counties
+        county_codes <- paste0("US:", values$current_state_fips, ":", values$current_county_fips)
         
         # Validate year selection
         if (is.null(input$year_selection) || length(input$year_selection) != 2) {
@@ -802,7 +911,7 @@ server <- function(input, output, session) {
         
         # Build query (updated to match script changes)
         qry <- list(
-          countycode         = county_code,
+          countycode         = county_codes,
           characteristicName = selected_parameters,
           sampleMedia        = "Water",
           startDateLo        = start_date
@@ -815,7 +924,7 @@ server <- function(input, output, session) {
           year_range_text <- paste("Years", start_year, "-", end_year)
         }
         
-        values$status <- paste("Fetching data for", values$current_location, "(", county_code, ") -", year_range_text, "- Parameters:", paste(selected_parameters, collapse = ", "))
+        values$status <- paste("Fetching data for", values$current_location, "(", county_codes, ") -", year_range_text, "- Parameters:", paste(selected_parameters, collapse = ", "))
         
         # Update status to show GET requests are running
         values$status <- paste("Making requests to USGS Water Quality Portal for", values$current_location, "for", length(selected_parameters), "parameters...")
@@ -951,7 +1060,7 @@ server <- function(input, output, session) {
                 input$time_aggregation == "year" ~ format(date, "%Y")
               )
             ) %>%
-            group_by(site_no, station_nm, time_period) %>%
+            group_by(site_id, site_name, time_period) %>%
             summarise(
               across(where(is.numeric), ~mean(.x, na.rm = TRUE)),
               n_measurements = n(),
@@ -959,7 +1068,7 @@ server <- function(input, output, session) {
               .groups = "drop"
             ) %>%
             rename(date = time_period) %>%
-            select(site_no, station_nm, date, everything())
+            select(site_id, site_name, date, everything())
         }
 
         return(data)

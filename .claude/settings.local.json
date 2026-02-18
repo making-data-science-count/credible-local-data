@@ -8,7 +8,9 @@
       "WebFetch(domain:github.com)",
       "WebFetch(domain:unpkg.com)",
       "WebFetch(domain:codap.concord.org)",
-      "Bash(git stash:*)"
+      "Bash(git stash:*)",
+      "Bash(cat:*)",
+      "Bash(timeout 10 Rscript:*)"
     ]
   }
 }

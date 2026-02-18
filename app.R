@@ -78,60 +78,83 @@ states_df <- fips_clean %>%
 # Dark: #2D3142
 
 custom_css <- "
-/* CREDIBLE Brand Color Overrides */
+/* Still Water palette — one color family throughout
+   Primary:   #3B7A8C  (lake teal)
+   Dark:      #2A5F70  (deep water, hovers)
+   Muted:     #6A9AA6  (secondary buttons)
+   Accent:    #4A9BAA  (status bar, spinner, links)
+*/
+
+/* App header */
 .skin-blue .main-header .navbar {
-  background-color: #E63946 !important;
+  background-color: #3B7A8C !important;
 }
-
 .skin-blue .main-header .logo {
-  background-color: #C8102E !important;
+  background-color: #2A5F70 !important;
 }
-
 .skin-blue .main-header .logo:hover {
-  background-color: #A00D24 !important;
+  background-color: #1F4A58 !important;
 }
 
-/* Primary box headers - Teal */
-.box.box-solid.box-primary > .box-header {
-  background-color: #60C5BA !important;
+/* All box headers — same color, every box type */
+.box.box-solid > .box-header {
+  background-color: #3B7A8C !important;
+  color: #ffffff !important;
+}
+.box.box-primary, .box.box-warning,
+.box.box-info,    .box.box-success {
+  border-color: #dee2e6 !important;
+  border-top-color: #3B7A8C !important;
+}
+
+/* Box base */
+.box {
+  border-radius: 6px !important;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.08) !important;
+  margin-bottom: 20px !important;
+}
+
+/* Header nav text */
+.main-header .navbar-brand {
+  color: white !important;
+  font-weight: bold !important;
+  padding: 15px !important;
+}
+
+/* All action buttons — same primary teal */
+.btn-primary, .btn-success, .btn-info {
+  background-color: #3B7A8C !important;
+  border-color: #2A5F70 !important;
+  color: white !important;
+}
+.btn-primary:hover, .btn-success:hover, .btn-info:hover {
+  background-color: #2A5F70 !important;
+  border-color: #1F4A58 !important;
   color: white !important;
 }
 
-.box.box-primary {
-  border-top-color: #60C5BA !important;
+/* Clear/Refresh — muted so it reads as secondary, not destructive */
+.btn-warning {
+  background-color: #6A9AA6 !important;
+  border-color: #5A8A96 !important;
+  color: white !important;
 }
-
-/* Warning box headers - Orange */
-.box.box-solid.box-warning > .box-header {
-  background-color: #F4A261 !important;
+.btn-warning:hover {
+  background-color: #5A8A96 !important;
+  border-color: #4A7A86 !important;
   color: white !important;
 }
 
-.box.box-warning {
-  border-top-color: #F4A261 !important;
+/* Status text */
+#status_text {
+  background-color: #f8f9fa;
+  border-left: 4px solid #4A9BAA;
+  padding: 15px;
+  border-radius: 4px;
+  font-family: monospace;
 }
 
-/* Info box headers - Sage Green */
-.box.box-solid.box-info > .box-header {
-  background-color: #7A9B76 !important;
-  color: white !important;
-}
-
-.box.box-info {
-  border-top-color: #7A9B76 !important;
-}
-
-/* Success box headers - Darker Teal */
-.box.box-solid.box-success > .box-header {
-  background-color: #4DACAA !important;
-  color: white !important;
-}
-
-.box.box-success {
-  border-top-color: #4DACAA !important;
-}
-
-/* Loading spinner */
+/* Loading */
 .loading-container {
   text-align: center;
   padding: 30px;
@@ -140,112 +163,40 @@ custom_css <- "
   border-radius: 8px;
   margin: 20px 0;
 }
-
 .loading-spinner {
   display: inline-block;
   width: 40px;
   height: 40px;
-  border: 3px solid #f3f3f3;
+  border: 3px solid #e0ecef;
   border-radius: 50%;
-  border-top-color: #60C5BA;
+  border-top-color: #3B7A8C;
   animation: spin 1s ease-in-out infinite;
   margin-bottom: 15px;
 }
-
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
-
-/* Progress bar */
 .progress-bar-custom {
   width: 100%;
   height: 6px;
-  background-color: #e9ecef;
+  background-color: #e0ecef;
   border-radius: 3px;
   overflow: hidden;
   margin-top: 10px;
 }
-
 .progress-bar-fill {
   height: 100%;
-  background-color: #60C5BA;
+  background-color: #3B7A8C;
   border-radius: 3px;
   animation: progress 3s ease-in-out infinite;
 }
-
 @keyframes progress {
-  0% { width: 0%; }
-  50% { width: 70%; }
+  0%   { width: 0%; }
+  50%  { width: 70%; }
   100% { width: 100%; }
 }
 
-/* Header styling */
-.main-header .navbar-brand {
-  color: white !important;
-  font-weight: bold !important;
-  padding: 15px !important;
-}
-
-/* Status text */
-#status_text {
-  background-color: #f8f9fa;
-  border-left: 4px solid #60C5BA;
-  padding: 15px;
-  border-radius: 4px;
-  font-family: monospace;
-}
-
-/* Box styling */
-.box {
-  border-radius: 6px !important;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
-  margin-bottom: 20px !important;
-}
-
-/* Button styling */
-.btn-primary {
-  background-color: #60C5BA !important;
-  border-color: #4DACAA !important;
-}
-
-.btn-primary:hover {
-  background-color: #4DACAA !important;
-  border-color: #3D9C9A !important;
-}
-
-.btn-info {
-  background-color: #7A9B76 !important;
-  border-color: #6A8A66 !important;
-}
-
-.btn-info:hover {
-  background-color: #6A8A66 !important;
-  border-color: #5A7956 !important;
-}
-
-.btn-warning {
-  background-color: #F4A261 !important;
-  border-color: #E08D4C !important;
-  color: white !important;
-}
-
-.btn-warning:hover {
-  background-color: #E08D4C !important;
-  border-color: #CC7A3C !important;
-  color: white !important;
-}
-
-.btn-success {
-  background-color: #7A9B76 !important;
-  border-color: #6A8A66 !important;
-}
-
-.btn-success:hover {
-  background-color: #6A8A66 !important;
-  border-color: #5A7956 !important;
-}
-
-/* Advanced options styling */
+/* Details / summary */
 details {
   background-color: #f8f9fa;
   border-radius: 6px;
@@ -253,27 +204,24 @@ details {
   border: 1px solid #dee2e6;
   margin: 10px 0;
 }
-
 summary {
   font-weight: bold;
   cursor: pointer;
   margin-bottom: 10px;
-  color: #2D3142;
+  color: #2A5F70;
 }
-
 details[open] summary {
   margin-bottom: 15px;
   padding-bottom: 10px;
   border-bottom: 1px solid #dee2e6;
 }
 
-/* Link colors */
+/* Links */
 a {
-  color: #60C5BA !important;
+  color: #3B7A8C !important;
 }
-
 a:hover {
-  color: #4DACAA !important;
+  color: #2A5F70 !important;
 }
 "
 
@@ -597,43 +545,30 @@ ui <- dashboardPage(
               ),
               
 
-              fluidRow(
-                box(
-                  title = "Data Preview", status = "warning", solidHeader = TRUE, width = 12,
-                  DT::dataTableOutput("preview_wide"),
-                  br(),
-                  # ============================================================================
-                  # CODAP EXPORT UI ELEMENTS - Water Quality
-                  # ============================================================================
-                  div(style = "margin-top: 15px; padding: 12px 15px; background-color: #f8f9fa; border-radius: 8px;",
-                      div(style = "display: flex; align-items: flex-end; gap: 10px;",
-                        downloadButton("download_wide", "Download as CSV",
-                                       class = "btn-success", icon = icon("download")),
-                        div(style = "margin-left: auto; display: flex; align-items: flex-end; gap: 8px;",
-                          div(style = "width: 220px;",
-                            textInput("codap_dataset_name", "CODAP Dataset Name:",
-                                      value = "WaterQualityData",
-                                      placeholder = "Enter dataset name")
-                          ),
-                          actionButton("send_to_codap", "Send to CODAP",
-                                       class = "btn-info", icon = icon("share-square"))
-                        )
-                      )
+              conditionalPanel(
+                condition = "output.data_fetched == true",
+                fluidRow(
+                  box(
+                    title = "Data Preview", status = "warning", solidHeader = TRUE, width = 12,
+                    DT::dataTableOutput("preview_wide"),
+                    # ============================================================================
+                    # CODAP EXPORT UI ELEMENTS - Water Quality
+                    # ============================================================================
+                    div(style = "margin-top: 12px; display: flex; gap: 10px;",
+                      downloadButton("download_wide", "Download as CSV",
+                                     class = "btn-success", icon = icon("download")),
+                      actionButton("send_to_codap", "Send to CODAP",
+                                   class = "btn-info", icon = icon("share-square"))
+                    )
                   )
                 )
               ),
 
-    # About Section
-    fluidRow(
-      box(
-        title = "About", status = "primary", solidHeader = TRUE, width = 12,
-        div(style = "padding: 8px 20px; text-align: center;",
-          tags$img(src = "images/credible-logo.png", height = "80px", style = "margin-bottom: 8px;"),
-          p(style = "margin: 0; font-size: 12px;",
-            tags$a(href = "https://projectcredible.com", target = "_blank", "projectcredible.com")
-          )
-        )
-      )
+    # Footer
+    div(style = "text-align: center; padding: 16px 0 8px 0;",
+      tags$img(src = "images/credible-logo.png", height = "60px", style = "display: block; margin: 0 auto 6px auto;"),
+      tags$a(href = "https://projectcredible.com", target = "_blank",
+             style = "font-size: 12px; color: #3B7A8C;", "projectcredible.com")
     )
   )
 )

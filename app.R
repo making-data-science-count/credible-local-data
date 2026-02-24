@@ -1615,39 +1615,79 @@ server <- function(input, output, session) {
       values$air_status <- "Fetching air quality sample data from EPA AQS..."
 
       tryCatch({
-        site_num <- input$air_site_selection
+        site_selection <- input$air_site_selection
         params   <- input$air_parameters
         bdate    <- as.Date(paste0(input$air_year_selection[1], "-01-01"))
         edate    <- as.Date(paste0(input$air_year_selection[2], "-12-31"))
 
+        # Handle "all" selection or multiple sites
+        if ("all" %in% site_selection) {
+          site_ids <- values$air_available_monitors$site_id
+        } else {
+          site_ids <- site_selection
+        }
+
+        n_sites <- length(site_ids)
         values$air_status <- paste(
-          "Fetching data for site", site_num, "—",
+          "Fetching data for", n_sites, "site(s) —",
           length(params), "parameter(s),",
           input$air_year_selection[1], "–", input$air_year_selection[2]
         )
 
-        # Fetch sample data for each parameter separately (RAQSAPI takes one at a time)
-        raw_list <- lapply(params, function(param) {
-          tryCatch({
-            RAQSAPI::aqs_sampledata_by_site(
-              parameter  = param,
-              bdate      = bdate,
-              edate      = edate,
-              stateFIPS  = values$air_current_state_fips,
-              countycode = values$air_current_county_fips,
-              sitenum    = site_num
-            )
-          }, error = function(e) {
-            message("Failed to fetch param ", param, ": ", e$message)
-            NULL
-          })
-        })
+        # Fetch data for each site
+        all_site_data <- list()
 
-        raw_data <- bind_rows(Filter(Negate(is.null), raw_list))
+        for (i in seq_along(site_ids)) {
+          site_id <- site_ids[i]
 
-        if (is.null(raw_data) || nrow(raw_data) == 0) {
+          # Parse site_id: format is "county_code-site_number"
+          site_parts <- strsplit(site_id, "-")[[1]]
+          county_code <- site_parts[1]
+          site_number <- site_parts[2]
+
+          # Get site details for this site
+          site_info <- values$air_available_monitors %>%
+            filter(site_id == !!site_id)
+
+          site_label <- if (nrow(site_info) > 0) site_info$site_label[1] else site_id
+
           values$air_status <- paste(
-            "No data found for site", site_num,
+            "Fetching site", i, "of", n_sites, "—", site_label
+          )
+
+          # Fetch sample data for each parameter separately (RAQSAPI takes one at a time)
+          raw_list <- lapply(params, function(param) {
+            tryCatch({
+              RAQSAPI::aqs_sampledata_by_site(
+                parameter  = param,
+                bdate      = bdate,
+                edate      = edate,
+                stateFIPS  = values$air_current_state_fips,
+                countycode = county_code,
+                sitenum    = site_number
+              )
+            }, error = function(e) {
+              message("Failed to fetch param ", param, " for site ", site_id, ": ", e$message)
+              NULL
+            })
+          })
+
+          raw_data <- bind_rows(Filter(Negate(is.null), raw_list))
+
+          if (!is.null(raw_data) && nrow(raw_data) > 0) {
+            # Add site identifier to the raw data
+            raw_data$site_id <- site_id
+            raw_data$site_label <- site_label
+            all_site_data[[i]] <- raw_data
+          }
+        }
+
+        # Combine data from all sites
+        combined_raw <- bind_rows(all_site_data)
+
+        if (is.null(combined_raw) || nrow(combined_raw) == 0) {
+          values$air_status <- paste(
+            "No data found for the selected site(s)",
             "with the selected parameters and year range."
           )
           values$air_loading_visible <- FALSE
@@ -1656,28 +1696,26 @@ server <- function(input, output, session) {
           return()
         }
 
-        values$air_status <- paste("Processing", nrow(raw_data), "records...")
+        values$air_status <- paste("Processing", nrow(combined_raw), "records from", n_sites, "site(s)...")
 
-        aq_clean <- raw_data %>% janitor::clean_names()
+        aq_clean <- combined_raw %>% janitor::clean_names()
 
-        # Extract site-level metadata (same for all rows at this site)
-        site_lat <- if ("latitude"  %in% names(aq_clean)) as.numeric(aq_clean$latitude[1])  else NA_real_
-        site_lon <- if ("longitude" %in% names(aq_clean)) as.numeric(aq_clean$longitude[1]) else NA_real_
-
-        # Build combined datetime field
+        # Build combined datetime field and keep site identifiers
         aq_tidy <- aq_clean %>%
           mutate(
             date_str       = format(as.Date(date_local), "%Y-%m-%d"),
             datetime_local = as.POSIXct(paste(date_str, time_local), format = "%Y-%m-%d %H:%M")
           ) %>%
-          select(datetime_local, parameter_code, sample_measurement) %>%
+          select(site_id, site_label, site_number, county_name, latitude, longitude,
+                 datetime_local, parameter_code, sample_measurement) %>%
           filter(!is.na(sample_measurement))
 
         values$air_long_data <- aq_tidy
 
-        # Pivot to wide: one row per datetime, one column per parameter code
+        # Pivot to wide: one row per site+datetime, one column per parameter code
         aq_wide <- aq_tidy %>%
           pivot_wider(
+            id_cols = c(site_id, site_label, site_number, county_name, latitude, longitude, datetime_local),
             names_from  = parameter_code,
             values_from = sample_measurement,
             values_fn   = mean
@@ -1705,26 +1743,28 @@ server <- function(input, output, session) {
           }
         }
 
-        # Format datetime to human-readable and prepend location metadata
+        # Format datetime and reorder columns with site info first
         aq_wide <- aq_wide %>%
           mutate(
             datetime_local = format(datetime_local, "%Y-%m-%d %H:%M"),
-            location       = values$air_current_location,
-            latitude       = site_lat,
-            longitude      = site_lon
+            location       = values$air_current_location
           ) %>%
-          select(location, latitude, longitude, datetime_local, everything())
+          select(site_number, site_label, county_name, latitude, longitude, location,
+                 datetime_local, everything(), -site_id)
 
         values$air_wide_data  <- aq_wide
         values$air_data_fetched <- TRUE
 
         values$air_status <- paste(
-          "Data ready — site", site_num, "in", values$air_current_location, "—",
+          "Data ready —", n_sites, "site(s) in", values$air_current_location, "—",
           nrow(aq_wide), "time points,", length(params), "pollutant(s) + composite AQI.",
           "Year range:", input$air_year_selection[1], "-", input$air_year_selection[2]
         )
 
-        showNotification("Air quality data fetched successfully!", type = "message", duration = 5)
+        showNotification(
+          paste("Air quality data fetched successfully!", n_sites, "site(s),", nrow(aq_wide), "records"),
+          type = "message", duration = 5
+        )
         values$air_loading_visible <- FALSE
 
       }, error = function(e) {
@@ -1736,8 +1776,8 @@ server <- function(input, output, session) {
 
     # Trigger Step 2 on button click
     observeEvent(input$fetch_air_data, {
-      if (is.null(input$air_site_selection) || input$air_site_selection == "") {
-        showNotification("Please find and select a monitoring site first (Step 1)", type = "error", duration = 5)
+      if (is.null(input$air_site_selection) || length(input$air_site_selection) == 0) {
+        showNotification("Please find and select at least one monitoring site first (Step 1)", type = "error", duration = 5)
         return()
       }
       values$air_loading_visible <- TRUE

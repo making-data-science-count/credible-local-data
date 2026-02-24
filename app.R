@@ -527,10 +527,18 @@ ui <- dashboardPage(
       "))
     ),
 
-    # Water Quality Data Collection
-    fluidRow(
-                box(
-                  title = "Access Data", status = "primary", solidHeader = TRUE, width = 12,
+    # Tab layout for Water Quality and Air Quality
+    tabsetPanel(
+      id = "main_tabs", type = "pills",
+
+      # ======================================================================
+      # WATER QUALITY TAB
+      # ======================================================================
+      tabPanel("Water Quality",
+        br(),
+        fluidRow(
+          box(
+            title = "Access Water Quality Data", status = "primary", solidHeader = TRUE, width = 12,
                   fluidRow(
                     column(3,
                            selectInput("state_selection", "Select State:", 
@@ -684,17 +692,17 @@ ui <- dashboardPage(
                 )
               ),
 
-    # ==========================================================================
-    # Air Quality Data Collection
-    # ==========================================================================
-    div(style = "margin: 30px 0 10px 0;",
-      hr(),
-      h3(style = "color: #3B7A8C; margin-bottom: 4px;", "Air Quality Data Collection"),
-      p(style = "color: #6c757d; font-size: 13px; margin-bottom: 4px;",
-        "Access EPA Air Quality System (AQS) data. Data availability has up to a 6-month delay from the present date."),
-      p(style = "color: #6c757d; font-size: 11px; font-style: italic; margin-bottom: 0;",
-        "Rivulet utils were originally developed as part of work on a grant by the National Science Foundation (Award #2445609). Notebook contributions by Michelle Wilkerson, Adelmo Eloy, Danny Zheng, Lucas Coletti, and Kolby Caban.")
-    ),
+      ), # end Water Quality tabPanel
+
+      # ======================================================================
+      # AIR QUALITY TAB
+      # ======================================================================
+      tabPanel("Air Quality",
+        br(),
+        p(style = "color: #6c757d; font-size: 13px; margin-bottom: 4px;",
+          "Access EPA Air Quality System (AQS) data. Data availability has up to a 6-month delay from the present date."),
+        p(style = "color: #6c757d; font-size: 11px; font-style: italic; margin-bottom: 0;",
+          "Rivulet utils were originally developed as part of work on a grant by the National Science Foundation (Award #2445609). Notebook contributions by Michelle Wilkerson, Adelmo Eloy, Danny Zheng, Lucas Coletti, and Kolby Caban."),
 
     fluidRow(
       box(
@@ -707,12 +715,14 @@ ui <- dashboardPage(
                              selected = "Tennessee")
           ),
           column(3,
-                 selectInput("air_county_selection", "Select County:",
+                 selectizeInput("air_county_selection", "Select County/Counties:",
                              choices = {
                                tn <- fips_clean[fips_clean$state_name == "Tennessee", "county_display", drop = TRUE]
-                               c("Choose a county..." = "", setNames(tn, tn))
+                               setNames(tn, tn)
                              },
-                             selected = "Knox County")
+                             selected = "Knox County",
+                             multiple = TRUE,
+                             options = list(placeholder = "Select one or more counties"))
           ),
           column(3,
                  sliderInput("air_year_selection", "Select Year Range:",
@@ -761,12 +771,13 @@ ui <- dashboardPage(
           condition = "output.air_monitors_found == true",
           hr(),
           h4("Monitor Selection"),
-          p("Select a monitoring station, then click Step 2 to fetch measurements."),
+          p("Select one or more monitoring stations, then click Step 2 to fetch measurements."),
           fluidRow(
             column(7,
-                   selectInput("air_site_selection", "Select Monitoring Site:",
-                               choices = c("Select a monitor..." = ""),
-                               selected = "")
+                   selectInput("air_site_selection", "Select Monitoring Site(s):",
+                               choices = c("All monitors" = "all"),
+                               selected = "all",
+                               multiple = TRUE)
             ),
             column(4,
                    br(),
@@ -813,7 +824,10 @@ ui <- dashboardPage(
           )
         )
       )
-    ),
+    )
+
+      ) # end Air Quality tabPanel
+    ), # end tabsetPanel
 
     # Footer
     div(style = "text-align: center; padding: 16px 0 12px 0;",
@@ -1184,9 +1198,13 @@ server <- function(input, output, session) {
         
         # Create wide format
         wq_wide <- wq_join %>%
-          mutate(row_id = row_number()) %>% 
-          pivot_wider(names_from = parameter, values_from = value)
-        
+          pivot_wider(names_from = parameter, values_from = value) %>%
+          mutate(
+            state  = input$state_selection,
+            county = values$current_location
+          ) %>%
+          select(state, county, site_id, site_name, lat, lon, date, everything(), -unit)
+
         values$wide_data <- wq_wide
         
         # Get top 5 most active sites (by measurement count)
@@ -1275,7 +1293,8 @@ server <- function(input, output, session) {
     output$preview_wide <- DT::renderDataTable({
       data <- filtered_wide_data()
       if (!is.null(data)) {
-        DT::datatable(data, options = list(scrollX = TRUE, pageLength = 10))
+        display_data <- data %>% select(-any_of(c("site_id", "row_id")))
+        DT::datatable(display_data, options = list(scrollX = TRUE, pageLength = 10))
       }
     })
     
@@ -1294,7 +1313,7 @@ server <- function(input, output, session) {
       content = function(file) {
         data <- filtered_wide_data()
         if (!is.null(data)) {
-          write_csv(data, file)
+          write_csv(data %>% select(-any_of(c("site_id", "row_id"))), file)
         }
       }
     )
@@ -1414,18 +1433,17 @@ server <- function(input, output, session) {
             filter(state_fips == state_info$state_fips) %>%
             arrange(county_name)
           
-          county_choices <- c("Choose a county..." = "", 
-                              setNames(counties_for_state$county_display, counties_for_state$county_display))
-          
+          county_choices <- setNames(counties_for_state$county_display, counties_for_state$county_display)
+
           # Set default to Knox County if Tennessee is selected
-          default_county <- if(input$air_state_selection == "Tennessee") "Knox County" else ""
-          
+          default_county <- if(input$air_state_selection == "Tennessee") "Knox County" else character(0)
+
         } else {
-          county_choices <- c("State not found" = "")
-          default_county <- ""
+          county_choices <- character(0)
+          default_county <- character(0)
         }
-        
-        updateSelectInput(session, "air_county_selection", choices = county_choices, selected = default_county)
+
+        updateSelectizeInput(session, "air_county_selection", choices = county_choices, selected = default_county)
       }
     })
     
@@ -1445,9 +1463,8 @@ server <- function(input, output, session) {
     # Step 1: Find Monitors button
     observeEvent(input$find_air_monitors, {
       if (input$air_state_selection == "" ||
-          input$air_county_selection == "" ||
-          input$air_county_selection == "Choose a county...") {
-        showNotification("Please select both state and county", type = "error", duration = 5)
+          is.null(input$air_county_selection) || length(input$air_county_selection) == 0) {
+        showNotification("Please select both state and at least one county", type = "error", duration = 5)
         return()
       }
       if (is.null(input$air_parameters) || length(input$air_parameters) == 0) {
@@ -1464,16 +1481,20 @@ server <- function(input, output, session) {
 
       county_info <- fips_clean %>%
         filter(state_name == input$air_state_selection,
-               county_display == input$air_county_selection)
+               county_display %in% input$air_county_selection)
 
       if (nrow(county_info) == 0) {
         showNotification("County not found in database.", type = "error", duration = 5)
         return()
       }
 
-      values$air_current_state_fips <- county_info$state_fips[1]
-      values$air_current_county_fips <- county_info$county_fips[1]
-      values$air_current_location <- paste(input$air_county_selection, input$air_state_selection, sep = ", ")
+      values$air_current_state_fips  <- county_info$state_fips[1]
+      values$air_current_county_fips <- county_info$county_fips   # vector of county FIPS
+      values$air_current_location <- if (length(input$air_county_selection) == 1) {
+        paste(input$air_county_selection, input$air_state_selection, sep = ", ")
+      } else {
+        paste0(paste(input$air_county_selection, collapse = ", "), ", ", input$air_state_selection)
+      }
       values$air_status <- paste("Searching for monitors in", values$air_current_location, "...")
       values$air_loading_visible <- TRUE
 
@@ -1482,20 +1503,24 @@ server <- function(input, output, session) {
         edate <- as.Date(paste0(input$air_year_selection[2], "-12-31"))
         params <- input$air_parameters
 
-        # Query monitors for each selected parameter
-        monitor_list <- lapply(params, function(param) {
-          tryCatch({
-            RAQSAPI::aqs_monitors_by_county(
-              parameter  = param,
-              bdate      = bdate,
-              edate      = edate,
-              stateFIPS  = values$air_current_state_fips,
-              countycode = values$air_current_county_fips
-            )
-          }, error = function(e) NULL)
-        })
+        # Query monitors for each selected parameter × county combination
+        monitor_list <- list()
+        for (county_fips in county_info$county_fips) {
+          for (param in params) {
+            result <- tryCatch({
+              RAQSAPI::aqs_monitors_by_county(
+                parameter  = param,
+                bdate      = bdate,
+                edate      = edate,
+                stateFIPS  = county_info$state_fips[1],
+                countycode = county_fips
+              )
+            }, error = function(e) NULL)
+            if (!is.null(result)) monitor_list <- c(monitor_list, list(result))
+          }
+        }
 
-        all_raw <- bind_rows(Filter(Negate(is.null), monitor_list))
+        all_raw <- bind_rows(monitor_list)
 
         if (is.null(all_raw) || nrow(all_raw) == 0) {
           values$air_status <- paste(
@@ -1555,22 +1580,22 @@ server <- function(input, output, session) {
               county_name, city_name
             ),
             site_label = paste0(site_number, " - ", address, ", ", display_city),
-            site_id    = site_number
+            site_id    = paste0(county_code, "-", site_number)
           ) %>%
           distinct(site_id, .keep_all = TRUE)
 
         values$air_available_monitors <- site_details
 
-        site_choices <- setNames(site_details$site_id, site_details$site_label)
+        site_choices <- c("All monitors" = "all", setNames(site_details$site_id, site_details$site_label))
         updateSelectInput(session, "air_site_selection",
                           choices  = site_choices,
-                          selected = site_choices[1])
+                          selected = "all")
 
         n_sites <- nrow(site_details)
         values$air_status <- paste(
           "Found", n_sites, "monitoring station(s) in", values$air_current_location,
           "with data for the selected parameters.",
-          "Select a station below and click 'Step 2: Fetch Air Quality Data'."
+          "Select station(s) below and click 'Step 2: Fetch Air Quality Data'."
         )
         values$air_monitors_found  <- TRUE
         values$air_loading_visible <- FALSE
@@ -1680,15 +1705,15 @@ server <- function(input, output, session) {
           }
         }
 
-        # Prepend location metadata columns
+        # Format datetime to human-readable and prepend location metadata
         aq_wide <- aq_wide %>%
           mutate(
-            site_number = site_num,
-            location    = values$air_current_location,
-            latitude    = site_lat,
-            longitude   = site_lon
+            datetime_local = format(datetime_local, "%Y-%m-%d %H:%M"),
+            location       = values$air_current_location,
+            latitude       = site_lat,
+            longitude      = site_lon
           ) %>%
-          select(site_number, location, latitude, longitude, datetime_local, everything())
+          select(location, latitude, longitude, datetime_local, everything())
 
         values$air_wide_data  <- aq_wide
         values$air_data_fetched <- TRUE

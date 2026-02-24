@@ -10,7 +10,8 @@
       "WebFetch(domain:codap.concord.org)",
       "Bash(git stash:*)",
       "Bash(cat:*)",
-      "Bash(timeout 10 Rscript:*)"
+      "Bash(timeout 10 Rscript:*)",
+      "Bash(git worktree:*)"
     ]
   }
 }

@@ -684,8 +684,10 @@ ui <- dashboardPage(
     div(style = "margin: 30px 0 10px 0;",
       hr(),
       h3(style = "color: #3B7A8C; margin-bottom: 4px;", "Air Quality Data Collection"),
-      p(style = "color: #6c757d; font-size: 13px; margin-bottom: 0;",
-        "Access EPA Air Quality System (AQS) data. Data availability has up to a 6-month delay from the present date.")
+      p(style = "color: #6c757d; font-size: 13px; margin-bottom: 4px;",
+        "Access EPA Air Quality System (AQS) data. Data availability has up to a 6-month delay from the present date."),
+      p(style = "color: #6c757d; font-size: 11px; font-style: italic; margin-bottom: 0;",
+        "Rivulet utils were originally developed as part of work on a grant by the National Science Foundation (Award #2445609). Notebook contributions by Michelle Wilkerson, Adelmo Eloy, Danny Zheng, Lucas Coletti, and Kolby Caban.")
     ),
 
     fluidRow(
@@ -1535,14 +1537,18 @@ server <- function(input, output, session) {
 
         # Build display info per site
         site_details <- monitors_clean %>%
-          select(state_code, county_code, site_number, address, city_name) %>%
+          select(state_code, county_code, site_number, address, city_name, county_name) %>%
           distinct() %>%
           inner_join(
             sites_with_data %>% select(state_code, county_code, site_number),
             by = c("state_code", "county_code", "site_number")
           ) %>%
           mutate(
-            site_label = paste0(site_number, " - ", address, ", ", city_name),
+            display_city = ifelse(
+              tolower(trimws(city_name)) %in% c("not in a city", ""),
+              county_name, city_name
+            ),
+            site_label = paste0(site_number, " - ", address, ", ", display_city),
             site_id    = site_number
           ) %>%
           distinct(site_id, .keep_all = TRUE)
@@ -1623,6 +1629,10 @@ server <- function(input, output, session) {
 
         aq_clean <- raw_data %>% janitor::clean_names()
 
+        # Extract site-level metadata (same for all rows at this site)
+        site_lat <- if ("latitude"  %in% names(aq_clean)) as.numeric(aq_clean$latitude[1])  else NA_real_
+        site_lon <- if ("longitude" %in% names(aq_clean)) as.numeric(aq_clean$longitude[1]) else NA_real_
+
         # Build combined datetime field
         aq_tidy <- aq_clean %>%
           mutate(
@@ -1663,6 +1673,16 @@ server <- function(input, output, session) {
             names(aq_wide)[names(aq_wide) == code] <- air_params[[code]]
           }
         }
+
+        # Prepend location metadata columns
+        aq_wide <- aq_wide %>%
+          mutate(
+            site_number = site_num,
+            location    = values$air_current_location,
+            latitude    = site_lat,
+            longitude   = site_lon
+          ) %>%
+          select(site_number, location, latitude, longitude, datetime_local, everything())
 
         values$air_wide_data  <- aq_wide
         values$air_data_fetched <- TRUE

@@ -684,8 +684,10 @@ ui <- dashboardPage(
     div(style = "margin: 30px 0 10px 0;",
       hr(),
       h3(style = "color: #3B7A8C; margin-bottom: 4px;", "Air Quality Data Collection"),
-      p(style = "color: #6c757d; font-size: 13px; margin-bottom: 0;",
-        "Access EPA Air Quality System (AQS) data. Data availability has up to a 6-month delay from the present date.")
+      p(style = "color: #6c757d; font-size: 13px; margin-bottom: 4px;",
+        "Access EPA Air Quality System (AQS) data. Data availability has up to a 6-month delay from the present date."),
+      p(style = "color: #6c757d; font-size: 11px; font-style: italic; margin-bottom: 0;",
+        "Rivulet utils were originally developed as part of work on a grant by the National Science Foundation (Award #2445609). Notebook contributions by Michelle Wilkerson, Adelmo Eloy, Danny Zheng, Lucas Coletti, and Kolby Caban.")
     ),
 
     fluidRow(

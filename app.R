@@ -13,7 +13,13 @@ if (!requireNamespace("RAQSAPI", quietly = TRUE)) {
   library(RAQSAPI)
 }
 
-aqs_creds <- RAQSAPI::aqs_credentials(username = "jmrosen48@gmail.com", key = "ochregazelle27")
+# AQS API credentials — set AQS_USERNAME and AQS_KEY in .Renviron (see .Renviron.example)
+# Falls back to the EPA public test account if env vars are not set.
+# Register for real credentials at: https://aqs.epa.gov/data/api/signup
+aqs_creds <- RAQSAPI::aqs_credentials(
+  username = ifelse(Sys.getenv("AQS_USERNAME") != "", Sys.getenv("AQS_USERNAME"), "test@aqs.api"),
+  key      = ifelse(Sys.getenv("AQS_KEY")      != "", Sys.getenv("AQS_KEY"),      "test")
+)
 
 # Check if climateR is installed, if not provide instructions
 if (!requireNamespace("climateR", quietly = TRUE)) {

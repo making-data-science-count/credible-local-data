@@ -5,6 +5,9 @@ library(tidyverse)
 library(dataRetrieval)
 library(janitor)
 library(lubridate)
+library(promises)
+library(future)
+plan(multisession)  # Enable async execution for ExtendedTask
 
 # Check if RAQSAPI is installed, if not provide instructions
 if (!requireNamespace("RAQSAPI", quietly = TRUE)) {
@@ -228,6 +231,26 @@ a {
 }
 a:hover {
   color: #2A5F70 !important;
+}
+
+/* Tab navigation pills - improved readability */
+.nav-pills > li > a {
+  background-color: #e9ecef !important;
+  color: #495057 !important;
+  font-weight: 500 !important;
+  border-radius: 5px !important;
+  margin-right: 5px !important;
+}
+.nav-pills > li > a:hover {
+  background-color: #6A9AA6 !important;
+  color: white !important;
+}
+.nav-pills > li.active > a,
+.nav-pills > li.active > a:hover,
+.nav-pills > li.active > a:focus {
+  background-color: #3B7A8C !important;
+  color: white !important;
+  font-weight: 600 !important;
 }
 "
 
@@ -567,7 +590,37 @@ ui <- dashboardPage(
                   # Water Quality Parameters Selection
                   hr(),
                   h4("Select Water Quality Parameters"),
-                  p("Choose which water quality parameters to fetch. Default selection focuses on commonly monitored indicators."),
+                  p("Choose which water quality parameters to fetch. Click 'What do these mean?' to learn about each parameter."),
+
+                  # Expandable help section for parameter descriptions
+                  tags$details(
+                    tags$summary("What do these parameters mean?"),
+                    tags$div(style = "padding: 10px 0;",
+                      tags$h6("Primary Indicators:", style = "margin-top: 0;"),
+                      tags$ul(style = "margin-bottom: 15px;",
+                        tags$li(tags$strong("pH"), " - Measures acidity/alkalinity on a 0-14 scale. 7 is neutral; below 7 is acidic, above 7 is basic. Most aquatic life thrives between 6.5-9.0."),
+                        tags$li(tags$strong("Phosphorus"), " - A nutrient essential for life, but too much causes algae blooms that deplete oxygen. Often comes from fertilizers and detergents."),
+                        tags$li(tags$strong("Turbidity"), " - Measures water clarity (how cloudy it is). Higher numbers mean cloudier water, which can harm fish gills and block sunlight for plants."),
+                        tags$li(tags$strong("Temperature"), " - Water temperature affects how much oxygen water can hold and influences aquatic life behavior and survival."),
+                        tags$li(tags$strong("Dissolved oxygen"), " - The amount of oxygen available in water for fish and other organisms to breathe. Low levels can cause fish kills.")
+                      ),
+                      tags$h6("Additional Parameters:"),
+                      tags$ul(
+                        tags$li(tags$strong("Nitrate"), " - A nutrient that often comes from fertilizers, sewage, or animal waste. High levels can harm aquatic ecosystems and drinking water."),
+                        tags$li(tags$strong("Nitrite"), " - Related to nitrate in the nitrogen cycle. Can indicate recent pollution from sewage or animal waste."),
+                        tags$li(tags$strong("Conductivity"), " - How well water conducts electricity, which indicates the amount of dissolved minerals and salts."),
+                        tags$li(tags$strong("Total dissolved solids"), " - The total amount of dissolved substances (minerals, salts, metals) in water."),
+                        tags$li(tags$strong("Alkalinity"), " - Water's ability to neutralize acids, like a natural buffer. Helps protect aquatic life from pH changes."),
+                        tags$li(tags$strong("Hardness"), " - The amount of calcium and magnesium in water. 'Hard' water has more minerals."),
+                        tags$li(tags$strong("Chloride"), " - Salt content in water. High levels often come from road salt, water softeners, or wastewater."),
+                        tags$li(tags$strong("Sulfate"), " - A naturally occurring mineral, but high levels may indicate industrial pollution or acid mine drainage."),
+                        tags$li(tags$strong("Ammonia"), " - Can be toxic to fish even at low levels. Often comes from sewage, fertilizers, or animal waste."),
+                        tags$li(tags$strong("Total nitrogen"), " - The sum of all nitrogen forms (nitrate, nitrite, ammonia, organic nitrogen). A key indicator of nutrient pollution.")
+                      )
+                    )
+                  ),
+                  br(),
+
                   fluidRow(
                     column(6,
                            h5("Primary Indicators"),
@@ -662,10 +715,7 @@ ui <- dashboardPage(
                         div(class = "loading-spinner"),
                         h4("Fetching Water Quality Data..."),
                         p("Connecting to USGS Water Quality Portal and processing data"),
-                        div(class = "progress-bar-custom",
-                            div(class = "progress-bar-fill")
-                        ),
-                        p("This may take 10-60 seconds depending on data availability and timeframe", 
+                        p("This may take 10-60 seconds depending on data availability and timeframe",
                           style = "font-size: 12px; margin-top: 10px; opacity: 0.8;")
                     )
                   )
@@ -682,12 +732,85 @@ ui <- dashboardPage(
                     # ============================================================================
                     # CODAP EXPORT UI ELEMENTS - Water Quality
                     # ============================================================================
-                    div(style = "margin-top: 12px; display: flex; gap: 10px;",
-                      downloadButton("download_wide", "Download as CSV",
-                                     class = "btn-success", icon = icon("download")),
-                      actionButton("send_to_codap", "Send to CODAP",
-                                   class = "btn-info", icon = icon("share-square"))
+                    div(style = "margin-top: 15px;",
+                      # Primary action: Send to CODAP (prominent)
+                      div(style = "margin-bottom: 12px;",
+                        actionButton("send_to_codap", "Send to CODAP for Analysis",
+                                     class = "btn-primary btn-lg", icon = icon("chart-bar"),
+                                     style = "font-size: 16px; padding: 12px 24px;"),
+                        p(style = "font-size: 12px; color: #6c757d; margin-top: 5px; margin-bottom: 0;",
+                          "Open your data in CODAP to create graphs and explore patterns")
+                      ),
+                      # Secondary action: Download CSV (muted styling)
+                      div(
+                        downloadButton("download_wide", "Download as CSV",
+                                       class = "btn-warning", icon = icon("download")),
+                        span(style = "font-size: 12px; color: #6c757d; margin-left: 10px;",
+                             "For use in spreadsheet software")
+                      )
                     )
+                  )
+                )
+              ),
+
+              # Water Quality Standards Reference Section
+              fluidRow(
+                box(
+                  title = "Understanding Your Data: Water Quality Standards",
+                  status = "info", solidHeader = TRUE, width = 12, collapsible = TRUE, collapsed = TRUE,
+                  p("Use these reference values to help interpret your data. Remember: water quality varies naturally, ",
+                    "so values outside these ranges aren't always a problem - they're a starting point for investigation!"),
+
+                  fluidRow(
+                    column(6,
+                      h5("EPA Drinking Water Standards"),
+                      p(style = "font-size: 12px; color: #6c757d;",
+                        "Maximum levels allowed in public drinking water supplies"),
+                      tags$table(class = "table table-sm table-striped", style = "font-size: 13px;",
+                        tags$thead(
+                          tags$tr(tags$th("Parameter"), tags$th("Maximum Level"), tags$th("Why It Matters"))
+                        ),
+                        tags$tbody(
+                          tags$tr(tags$td("pH"), tags$td("6.5 - 8.5"), tags$td("Outside this range can corrode pipes or taste bad")),
+                          tags$tr(tags$td("Nitrate"), tags$td("10 mg/L"), tags$td("High levels can cause 'blue baby syndrome'")),
+                          tags$tr(tags$td("Nitrite"), tags$td("1 mg/L"), tags$td("Similar health concerns as nitrate")),
+                          tags$tr(tags$td("Chloride"), tags$td("250 mg/L"), tags$td("Affects taste; high levels may indicate pollution")),
+                          tags$tr(tags$td("Sulfate"), tags$td("250 mg/L"), tags$td("High levels can cause digestive issues")),
+                          tags$tr(tags$td("Total dissolved solids"), tags$td("500 mg/L"), tags$td("Affects taste and can indicate contamination"))
+                        )
+                      )
+                    ),
+                    column(6,
+                      h5("Healthy Stream Guidelines"),
+                      p(style = "font-size: 12px; color: #6c757d;",
+                        "Typical ranges for streams that support aquatic life"),
+                      tags$table(class = "table table-sm table-striped", style = "font-size: 13px;",
+                        tags$thead(
+                          tags$tr(tags$th("Parameter"), tags$th("Healthy Range"), tags$th("Why It Matters"))
+                        ),
+                        tags$tbody(
+                          tags$tr(tags$td("pH"), tags$td("6.5 - 9.0"), tags$td("Most aquatic life thrives in this range")),
+                          tags$tr(tags$td("Dissolved oxygen"), tags$td("> 5 mg/L"), tags$td("Fish need oxygen to survive")),
+                          tags$tr(tags$td("Temperature"), tags$td("< 20°C (cold water fish)"), tags$td("Warm water holds less oxygen")),
+                          tags$tr(tags$td("Turbidity"), tags$td("< 10 NTU"), tags$td("Cloudy water blocks sunlight for plants")),
+                          tags$tr(tags$td("Phosphorus"), tags$td("< 0.1 mg/L"), tags$td("Excess causes algae blooms")),
+                          tags$tr(tags$td("Ammonia"), tags$td("< 0.02 mg/L"), tags$td("Toxic to fish at low concentrations"))
+                        )
+                      )
+                    )
+                  ),
+
+                  hr(),
+                  p(style = "font-size: 11px; color: #6c757d; margin-bottom: 0;",
+                    tags$strong("Source: "),
+                    "U.S. Environmental Protection Agency. ",
+                    tags$em("National Primary Drinking Water Regulations"), " and ",
+                    tags$em("Water Quality Standards Handbook"), ". ",
+                    tags$a(href = "https://www.epa.gov/ground-water-and-drinking-water/national-primary-drinking-water-regulations",
+                           target = "_blank", "EPA Drinking Water Standards"),
+                    " | ",
+                    tags$a(href = "https://www.epa.gov/wqs-tech/water-quality-standards-handbook",
+                           target = "_blank", "Water Quality Standards Handbook")
                   )
                 )
               ),
@@ -701,9 +824,6 @@ ui <- dashboardPage(
         br(),
         p(style = "color: #6c757d; font-size: 13px; margin-bottom: 4px;",
           "Access EPA Air Quality System (AQS) data. Data availability has up to a 6-month delay from the present date."),
-        p(style = "color: #6c757d; font-size: 11px; font-style: italic; margin-bottom: 0;",
-          "Rivulet utils were originally developed as part of work on a grant by the National Science Foundation (Award #2445609). Notebook contributions by Michelle Wilkerson, Adelmo Eloy, Danny Zheng, Lucas Coletti, and Kolby Caban."),
-
     fluidRow(
       box(
         title = "Access Air Quality Data", status = "primary", solidHeader = TRUE, width = 12,
@@ -715,46 +835,24 @@ ui <- dashboardPage(
                              selected = "Tennessee")
           ),
           column(3,
-                 selectizeInput("air_county_selection", "Select County/Counties:",
+                 selectInput("air_county_selection", "Select County:",
                              choices = {
                                tn <- fips_clean[fips_clean$state_name == "Tennessee", "county_display", drop = TRUE]
-                               setNames(tn, tn)
+                               c("Choose a county..." = "", setNames(tn, tn))
                              },
-                             selected = "Knox County",
-                             multiple = TRUE,
-                             options = list(placeholder = "Select one or more counties"))
+                             selected = "Knox County")
           ),
           column(3,
-                 sliderInput("air_year_selection", "Select Year Range:",
-                             min = 2000, max = 2025,
-                             value = c(2022, 2024),
-                             step = 1, sep = "")
-          )
-        ),
-
-        hr(),
-        h4("Select Air Quality Parameters"),
-        p("Choose which AQI pollutants to include. Not all monitors measure all parameters."),
-        fluidRow(
-          column(12,
-                 checkboxGroupInput("air_parameters", NULL,
-                                    choices = c(
-                                      "Ozone (O3)" = "44201",
-                                      "PM2.5" = "88101",
-                                      "PM10" = "81102",
-                                      "Carbon Monoxide (CO)" = "42101",
-                                      "Sulfur Dioxide (SO2)" = "42401",
-                                      "Nitrogen Dioxide (NO2)" = "42602"
-                                    ),
-                                    selected = c("44201", "88101"),
-                                    inline = TRUE)
+                 selectInput("air_year_selection", "Select Year:",
+                             choices = 2025:2000,
+                             selected = 2024)
           )
         ),
 
         fluidRow(
           column(4,
                  br(),
-                 actionButton("find_air_monitors", "Step 1: Find Monitors",
+                 actionButton("find_air_monitors", "Step 1: Find Sites",
                               class = "btn-primary", icon = icon("search")),
                  br(), br(),
                  actionButton("refresh_air_data", "Refresh/Clear",
@@ -770,20 +868,28 @@ ui <- dashboardPage(
         conditionalPanel(
           condition = "output.air_monitors_found == true",
           hr(),
-          h4("Monitor Selection"),
-          p("Select one or more monitoring stations, then click Step 2 to fetch measurements."),
+          h4("Site Selection"),
+          p("Select a monitoring site to see available parameters."),
+          p(style = "color: #6c757d; font-size: 13px; font-style: italic;",
+            "Tip: Each query adds to your existing data. Use 'Refresh/Clear' to start fresh."),
           fluidRow(
-            column(7,
-                   selectInput("air_site_selection", "Select Monitoring Site(s):",
-                               choices = c("All monitors" = "all"),
-                               selected = "all",
-                               multiple = TRUE)
-            ),
-            column(4,
-                   br(),
-                   actionButton("fetch_air_data", "Step 2: Fetch Air Quality Data",
-                                class = "btn-success", icon = icon("download"))
+            column(8,
+                   selectInput("air_site_selection", "Select Monitoring Site:",
+                               choices = c("Choose a site..." = ""),
+                               selected = "")
             )
+          ),
+
+          # Parameter selection — appears after site is selected
+          conditionalPanel(
+            condition = "input.air_site_selection != ''",
+            hr(),
+            h4("Select Parameters"),
+            p("Choose which pollutants to fetch for this site."),
+            uiOutput("air_parameters_ui"),
+            br(),
+            actionButton("fetch_air_data", "Step 2: Add Data",
+                         class = "btn-success", icon = icon("plus"))
           )
         )
       )
@@ -799,9 +905,6 @@ ui <- dashboardPage(
               div(class = "loading-spinner"),
               h4("Fetching Air Quality Data..."),
               p("Connecting to EPA Air Quality System and processing data"),
-              div(class = "progress-bar-custom",
-                  div(class = "progress-bar-fill")
-              ),
               p("This may take 10-60 seconds depending on data availability",
                 style = "font-size: 12px; margin-top: 10px; opacity: 0.8;")
           )
@@ -824,7 +927,15 @@ ui <- dashboardPage(
           )
         )
       )
-    )
+    ),
+
+    # Rivulet utils attribution
+    br(),
+    p(style = "color: #6c757d; font-size: 11px; font-style: italic; margin-top: 20px;",
+      "This tab is based on ",
+      tags$a(href = "https://github.com/CalCoRE/rivulet-utils", target = "_blank",
+             style = "color: #3B7A8C;", "Rivulet utils"),
+      " (Python/Jupyter notebooks), originally developed as part of work on a grant by the National Science Foundation (Award #2445609). Notebook contributions by Michelle Wilkerson, Adelmo Eloy, Danny Zheng, Lucas Coletti, and Kolby Caban.")
 
       ) # end Air Quality tabPanel
     ), # end tabsetPanel
@@ -854,6 +965,7 @@ server <- function(input, output, session) {
       current_location = "",
       loading_visible = FALSE,
       available_sites = NULL,
+      fetch_start_time = NULL,  # Track when fetch started for elapsed time display
 
       # Air quality data
       air_wide_data = NULL,
@@ -865,8 +977,10 @@ server <- function(input, output, session) {
       air_current_county_fips = "",
       air_current_location = "",
       air_loading_visible = FALSE,
-      air_available_sites = NULL,
-      air_available_monitors = NULL
+      air_available_monitors = NULL,
+      air_site_params = NULL,
+      air_fetch_start_time = NULL,  # Track when fetch started for elapsed time display
+      air_base_status = NULL  # Base message for elapsed time updates (avoids race condition)
 
       ## ARCHIVED: Weather reactive values
       ## To restore: Uncomment the sections below
@@ -922,7 +1036,476 @@ server <- function(input, output, session) {
       values$weather_data_fetched
     })
     outputOptions(output, "weather_data_fetched", suspendWhenHidden = FALSE)
-    
+
+    # ============================================================
+    # ExtendedTask for Water Quality API calls (async)
+    # ============================================================
+    water_fetch_task <- ExtendedTask$new(function(qry, location) {
+      future({
+        # These API calls run in a separate R process, allowing UI to update
+        wq_raw <- do.call(dataRetrieval::readWQPdata, qry)
+        meta_df <- do.call(dataRetrieval::whatWQPsites, qry)
+        list(wq_raw = wq_raw, meta_df = meta_df, location = location)
+      }, seed = TRUE)
+    }) |> bslib::bind_task_button("fetch_data")
+
+    # Observer for elapsed time display during water quality fetch
+    observe({
+      invalidateLater(1000)  # Update every second
+      if (values$loading_visible && !is.null(values$fetch_start_time)) {
+        elapsed <- round(difftime(Sys.time(), values$fetch_start_time, units = "secs"))
+        values$status <- paste0("Requesting data from USGS Water Quality Portal... (", elapsed, " seconds)")
+      }
+    })
+
+    # Observer for water quality task completion
+    observeEvent(water_fetch_task$result(), {
+      result <- water_fetch_task$result()
+      wq_raw <- result$wq_raw
+      meta_df <- result$meta_df
+      location <- result$location
+
+      # Get year range text from input (still available in main process)
+      start_year <- input$year_selection[1]
+      end_year <- input$year_selection[2]
+      year_range_text <- if (start_year == end_year) {
+        paste("Year", start_year)
+      } else {
+        paste("Years", start_year, "-", end_year)
+      }
+
+      values$status <- paste("Processing", nrow(wq_raw), "samples from", location, "...")
+
+      if (nrow(wq_raw) == 0) {
+        values$status <- paste0(
+          "No water quality data found for ", location, ".\n\n",
+          "This might mean:\n",
+          "- This county doesn't have water quality monitoring stations\n",
+          "- No data was collected during your selected years\n",
+          "- The selected parameters aren't monitored here\n\n",
+          "Try: Select a different county, expand your year range, or choose different parameters."
+        )
+        showNotification(
+          paste("No data found for", location, "- try a different county or expand your year range"),
+          type = "warning", duration = 8
+        )
+        values$loading_visible <- FALSE
+        values$fetch_start_time <- NULL
+        return()
+      }
+
+      # Clean names
+      wq_clean <- wq_raw %>% janitor::clean_names()
+      meta <- meta_df %>% janitor::clean_names()
+
+      # Process data following updated script logic
+      lat_col <- grep("latitude", names(meta), value = TRUE)[1]
+      lon_col <- grep("longitude", names(meta), value = TRUE)[1]
+
+      wq_tidy <- wq_clean %>%
+        transmute(
+          site_id = monitoring_location_identifier,
+          date = activity_start_date,
+          parameter = characteristic_name,
+          value = as.numeric(result_measure_value),
+          unit = result_measure_measure_unit_code
+        )
+
+      meta_trim <- meta %>%
+        transmute(
+          site_id = monitoring_location_identifier,
+          site_name = monitoring_location_name,
+          lat = .data[[lat_col]],
+          lon = .data[[lon_col]]
+        )
+
+      # Join samples with metadata
+      wq_join <- wq_tidy %>%
+        left_join(meta_trim, by = "site_id") %>%
+        relocate(site_name, lat, lon, .after = site_id)
+
+      # Standardise units: convert µg/L -> mg/L
+      wq_join <- wq_join %>%
+        mutate(
+          value = if_else(unit %in% c("ug/l", "µg/l", "ug/L", "µg/L"),
+                          value / 1000, value),
+          unit = if_else(unit %in% c("ug/l", "µg/l", "ug/L", "µg/L"),
+                         "mg/L", unit)
+        )
+
+      # Create long format
+      values$long_data <- wq_join
+
+      # Create wide format
+      wq_wide <- wq_join %>%
+        pivot_wider(names_from = parameter, values_from = value) %>%
+        mutate(
+          state = input$state_selection,
+          county = location
+        ) %>%
+        select(state, county, site_id, site_name, lat, lon, date, everything(), -unit)
+
+      values$wide_data <- wq_wide
+
+      # Get top 5 most active sites (by measurement count)
+      available_sites <- wq_join %>%
+        group_by(site_id, site_name) %>%
+        summarise(n_measurements = n(), .groups = "drop") %>%
+        arrange(desc(n_measurements)) %>%
+        slice_head(n = 5) %>%
+        mutate(
+          # Create informative label with measurement count
+          display_label = paste0(site_name, " (", n_measurements, " measurements)")
+        )
+
+      values$available_sites <- available_sites
+      values$data_fetched <- TRUE
+
+      # Update site selector choices with informative labels
+      site_choices <- c("All sites" = "all",
+                        setNames(available_sites$site_id, available_sites$display_label))
+      updateSelectInput(session, "site_selection",
+                        choices = site_choices,
+                        selected = "all")
+
+      # Get unique parameters found in the data
+      found_parameters <- unique(wq_join$parameter)
+
+      values$status <- paste("Data processing complete for", location, "! Found",
+                             nrow(wq_join), "measurements from",
+                             length(unique(wq_join$site_id)), "monitoring sites. Year range:", year_range_text,
+                             "- Parameters found:", paste(found_parameters, collapse = ", "))
+
+      showNotification("Data fetched successfully!", type = "message", duration = 5)
+
+      # Hide loading indicator
+      values$loading_visible <- FALSE
+      values$fetch_start_time <- NULL
+    })
+
+    # Observer for water quality task errors
+    observeEvent(water_fetch_task$status(), {
+      if (water_fetch_task$status() == "error") {
+        err <- water_fetch_task$error()
+        values$status <- paste0(
+          "Oops! Something went wrong while fetching data.\n\n",
+          "Technical details: ", err$message, "\n\n",
+          "What you can try:\n",
+          "- Wait a moment and click 'Fetch Water Quality Data' again\n",
+          "- Check your internet connection\n",
+          "- Try selecting a different county or smaller year range\n",
+          "- Ask your teacher for help if this keeps happening"
+        )
+        showNotification(
+          "There was a problem fetching data. Try again or select different options.",
+          type = "error", duration = 8
+        )
+        values$loading_visible <- FALSE
+        values$fetch_start_time <- NULL
+      }
+    })
+
+    # ============================================================
+    # ExtendedTask for Air Quality Monitor Search (async)
+    # ============================================================
+    air_monitors_task <- ExtendedTask$new(function(state_fips, county_fips, bdate, edate, location) {
+      future({
+        # Set up RAQSAPI credentials in this worker process
+        RAQSAPI::aqs_credentials(
+          username = ifelse(Sys.getenv("AQS_USERNAME") != "", Sys.getenv("AQS_USERNAME"), "test@aqs.api"),
+          key = ifelse(Sys.getenv("AQS_KEY") != "", Sys.getenv("AQS_KEY"), "test")
+        )
+
+        # Query ALL 6 common air quality parameters to find all sites
+        all_params <- c("44201", "88101", "81102", "42101", "42401", "42602")
+
+        # Query monitors for each parameter
+        monitor_list <- list()
+        for (param in all_params) {
+          result <- tryCatch({
+            RAQSAPI::aqs_monitors_by_county(
+              parameter = param,
+              bdate = bdate,
+              edate = edate,
+              stateFIPS = state_fips,
+              countycode = county_fips
+            )
+          }, error = function(e) {
+            NULL
+          })
+          if (!is.null(result)) monitor_list <- c(monitor_list, list(result))
+        }
+
+        all_raw <- dplyr::bind_rows(monitor_list)
+        list(all_raw = all_raw, location = location)
+      }, seed = TRUE)
+    }) |> bslib::bind_task_button("find_air_monitors")
+
+    # Observer for elapsed time display during air quality operations
+    observe({
+      invalidateLater(1000)
+      if (values$air_loading_visible && !is.null(values$air_fetch_start_time) && !is.null(values$air_base_status)) {
+        elapsed <- round(difftime(Sys.time(), values$air_fetch_start_time, units = "secs"))
+        values$air_status <- paste0(values$air_base_status, " (", elapsed, " seconds)")
+      }
+    })
+
+    # Observer for air monitors task completion
+    observeEvent(air_monitors_task$result(), {
+      result <- air_monitors_task$result()
+      all_raw <- result$all_raw
+      location <- result$location
+
+      if (is.null(all_raw) || nrow(all_raw) == 0) {
+        values$air_status <- paste(
+          "No monitoring sites found in", location,
+          "for", input$air_year_selection, ". Try a different year or location."
+        )
+        values$air_loading_visible <- FALSE
+        values$air_fetch_start_time <- NULL
+      values$air_base_status <- NULL
+        showNotification("No monitoring sites found. Try a different year or location.",
+                         type = "warning", duration = 8)
+        return()
+      }
+
+      monitors_clean <- all_raw %>% janitor::clean_names()
+
+      # Summarize which parameters each site has
+      sites_summary <- monitors_clean %>%
+        group_by(state_code, county_code, site_number) %>%
+        summarise(params_available = list(unique(parameter_code)), .groups = "drop") %>%
+        mutate(
+          n_params = sapply(params_available, length),
+          site_id = paste0(county_code, "-", site_number)
+        ) %>%
+        arrange(desc(n_params))
+
+      # Store site-to-params mapping
+      values$air_site_params <- sites_summary %>%
+        select(site_id, params_available)
+
+      # Build display info per site
+      site_details <- monitors_clean %>%
+        select(state_code, county_code, site_number, address, city_name, county_name) %>%
+        distinct() %>%
+        inner_join(
+          sites_summary %>% select(state_code, county_code, site_number, n_params),
+          by = c("state_code", "county_code", "site_number")
+        ) %>%
+        mutate(
+          display_city = ifelse(
+            tolower(trimws(city_name)) %in% c("not in a city", ""),
+            county_name, city_name
+          ),
+          site_label = paste0(site_number, " - ", address, ", ", display_city, " (", n_params, " params)"),
+          site_id = paste0(county_code, "-", site_number)
+        ) %>%
+        arrange(desc(n_params)) %>%
+        distinct(site_id, .keep_all = TRUE)
+
+      values$air_available_monitors <- site_details
+
+      site_choices <- c("Choose a site..." = "", setNames(site_details$site_id, site_details$site_label))
+      updateSelectInput(session, "air_site_selection",
+                        choices = site_choices,
+                        selected = "")
+
+      n_sites <- nrow(site_details)
+      values$air_status <- paste(
+        "Found", n_sites, "monitoring station(s) in", location,
+        "for", input$air_year_selection, ". Select a site below."
+      )
+      values$air_monitors_found <- TRUE
+      values$air_loading_visible <- FALSE
+      values$air_fetch_start_time <- NULL
+      values$air_base_status <- NULL
+
+      showNotification(paste("Found", n_sites, "monitor(s). Select one to add data."),
+                       type = "message", duration = 5)
+    })
+
+    # Observer for air monitors task errors
+    observeEvent(air_monitors_task$status(), {
+      if (air_monitors_task$status() == "error") {
+        err <- air_monitors_task$error()
+        values$air_status <- paste("Error finding monitors:", err$message)
+        showNotification(paste("Error:", err$message), type = "error", duration = 8)
+        values$air_loading_visible <- FALSE
+        values$air_fetch_start_time <- NULL
+      values$air_base_status <- NULL
+      }
+    })
+
+    # ============================================================
+    # ExtendedTask for Air Quality Data Fetch (async)
+    # ============================================================
+    air_data_task <- ExtendedTask$new(function(state_fips, county_code, site_number, params, bdate, edate, site_label) {
+      future({
+        # Set up RAQSAPI credentials in this worker process
+        RAQSAPI::aqs_credentials(
+          username = ifelse(Sys.getenv("AQS_USERNAME") != "", Sys.getenv("AQS_USERNAME"), "test@aqs.api"),
+          key = ifelse(Sys.getenv("AQS_KEY") != "", Sys.getenv("AQS_KEY"), "test")
+        )
+
+        # Fetch data for each selected parameter
+        raw_list <- list()
+        for (param in params) {
+          result <- tryCatch({
+            RAQSAPI::aqs_sampledata_by_site(
+              parameter = param,
+              bdate = bdate,
+              edate = edate,
+              stateFIPS = state_fips,
+              countycode = county_code,
+              sitenum = site_number
+            )
+          }, error = function(e) {
+            NULL
+          })
+          if (!is.null(result) && nrow(result) > 0) {
+            raw_list <- c(raw_list, list(result))
+          }
+        }
+
+        all_raw <- dplyr::bind_rows(raw_list)
+        list(all_raw = all_raw, site_label = site_label, site_id = paste0(county_code, "-", site_number))
+      }, seed = TRUE)
+    }) |> bslib::bind_task_button("fetch_air_data")
+
+    # Observer for air data task completion - full processing logic
+    observeEvent(air_data_task$result(), {
+      result <- air_data_task$result()
+      raw_data <- result$all_raw
+      site_label <- result$site_label
+      site_id <- result$site_id
+
+      if (is.null(raw_data) || nrow(raw_data) == 0) {
+        values$air_status <- paste(
+          "No data found for", site_label, "in", input$air_year_selection
+        )
+        values$air_loading_visible <- FALSE
+        values$air_fetch_start_time <- NULL
+      values$air_base_status <- NULL
+        showNotification("No data found. Try a different site, parameters, or year.",
+                         type = "warning", duration = 8)
+        return()
+      }
+
+      values$air_status <- paste("Processing", nrow(raw_data), "records...")
+
+      aq_clean <- raw_data %>% janitor::clean_names()
+
+      # Build combined datetime field and keep site identifiers
+      aq_tidy <- aq_clean %>%
+        mutate(
+          date_str = format(as.Date(date_local), "%Y-%m-%d"),
+          datetime_local = as.POSIXct(paste(date_str, time_local), format = "%Y-%m-%d %H:%M"),
+          site_id = !!site_id,
+          site_label = !!site_label
+        ) %>%
+        select(site_id, site_label, site_number, county, latitude, longitude,
+               datetime_local, parameter_code, sample_measurement) %>%
+        filter(!is.na(sample_measurement))
+
+      # Check if any valid measurements remain after filtering out NAs
+      if (nrow(aq_tidy) == 0) {
+        values$air_status <- paste(
+          "No valid measurements for", site_label, "in", input$air_year_selection,
+          "- all values were NA or flagged"
+        )
+        values$air_loading_visible <- FALSE
+        values$air_fetch_start_time <- NULL
+      values$air_base_status <- NULL
+        showNotification("No valid measurements found. The data may be flagged as invalid. Try a different site or year.",
+                         type = "warning", duration = 8)
+        return()
+      }
+
+      # Pivot to wide: one row per datetime, one column per parameter code
+      aq_wide <- aq_tidy %>%
+        pivot_wider(
+          id_cols = c(site_id, site_label, site_number, county, latitude, longitude, datetime_local),
+          names_from = parameter_code,
+          values_from = sample_measurement,
+          values_fn = mean
+        )
+
+      # Calculate composite AQI per row using parameter-code columns
+      param_code_cols <- intersect(names(aq_wide), names(aqi_breakpoints))
+      if (length(param_code_cols) > 0) {
+        aq_wide$composite_aqi <- apply(
+          aq_wide[, param_code_cols, drop = FALSE], 1,
+          function(row) {
+            conc_vec <- as.numeric(row)
+            names(conc_vec) <- param_code_cols
+            conc_vec <- conc_vec[!is.na(conc_vec)]
+            if (length(conc_vec) == 0) return(NA_real_)
+            calculate_composite_aqi(conc_vec)
+          }
+        )
+      }
+
+      # Rename parameter-code columns to human-readable display names
+      for (code in names(air_params)) {
+        if (code %in% names(aq_wide)) {
+          names(aq_wide)[names(aq_wide) == code] <- air_params[[code]]
+        }
+      }
+
+      # Format datetime and reorder columns with site info first
+      fetch_location <- paste(input$air_county_selection, input$air_state_selection, sep = ", ")
+
+      aq_wide_new <- aq_wide %>%
+        mutate(
+          datetime_local = as.character(format(datetime_local, "%Y-%m-%d %H:%M")),
+          location = fetch_location
+        ) %>%
+        select(site_number, site_label, county, latitude, longitude, location,
+               datetime_local, everything(), -site_id)
+
+      # APPEND to existing data (if any)
+      if (is.null(values$air_wide_data) || nrow(values$air_wide_data) == 0) {
+        values$air_wide_data <- aq_wide_new
+        values$air_long_data <- aq_tidy
+      } else {
+        values$air_wide_data <- bind_rows(values$air_wide_data, aq_wide_new)
+        values$air_long_data <- bind_rows(values$air_long_data, aq_tidy)
+      }
+
+      values$air_data_fetched <- TRUE
+
+      # Show cumulative total with location and site info
+      total_rows <- nrow(values$air_wide_data)
+      unique_locations <- length(unique(values$air_wide_data$location))
+      unique_sites <- length(unique(values$air_wide_data$site_number))
+
+      values$air_status <- paste(
+        "Added", nrow(aq_wide_new), "records from", site_label, "-",
+        "Total:", total_rows, "records from", unique_sites, "site(s) across", unique_locations, "location(s)"
+      )
+      values$air_loading_visible <- FALSE
+      values$air_fetch_start_time <- NULL
+      values$air_base_status <- NULL
+
+      showNotification(
+        paste("Added", nrow(aq_wide_new), "records! Total:", total_rows, "records from", unique_sites, "site(s)"),
+        type = "message", duration = 5
+      )
+    })
+
+    # Observer for air data task errors
+    observeEvent(air_data_task$status(), {
+      if (air_data_task$status() == "error") {
+        err <- air_data_task$error()
+        values$air_status <- paste("Error fetching air data:", err$message)
+        showNotification(paste("Error:", err$message), type = "error", duration = 8)
+        values$air_loading_visible <- FALSE
+        values$air_fetch_start_time <- NULL
+      values$air_base_status <- NULL
+      }
+    })
+
     # Update county choices when state changes
     observeEvent(input$state_selection, {
       if (input$state_selection != "") {
@@ -1014,17 +1597,29 @@ server <- function(input, output, session) {
       }
     })
     
-    # Data fetching logic (dropdown selection)
+    # Data fetching logic (dropdown selection) - now uses ExtendedTask for async API calls
     observeEvent(input$fetch_data, {
-      
+
       # Validate inputs
       if (input$state_selection == "" || is.null(input$county_selection) || length(input$county_selection) == 0) {
         showNotification("Please select state and at least one county", type = "error", duration = 5)
         return()
       }
-      
-      # Show loading indicator
-      values$loading_visible <- TRUE
+
+      # Validate year selection
+      if (is.null(input$year_selection) || length(input$year_selection) != 2) {
+        showNotification("Please select a year range", type = "error", duration = 5)
+        return()
+      }
+
+      # Combine parameter selections
+      selected_parameters <- c(input$parameters_primary, input$parameters_additional)
+
+      # Validate parameter selection
+      if (is.null(selected_parameters) || length(selected_parameters) == 0) {
+        showNotification("Please select at least one water quality parameter", type = "error", duration = 5)
+        return()
+      }
 
       # Get FIPS codes for all selected counties
       county_info <- fips_clean %>%
@@ -1033,7 +1628,6 @@ server <- function(input, output, session) {
 
       if (nrow(county_info) == 0) {
         showNotification("County not found in database. Please try again.", type = "error", duration = 5)
-        values$loading_visible <- FALSE
         return()
       }
 
@@ -1049,8 +1643,28 @@ server <- function(input, output, session) {
       } else {
         paste0(paste(input$county_selection, collapse = ", "), ", ", input$state_selection)
       }
-      
-      fetch_water_data()
+
+      # Build county codes for query
+      county_codes <- paste0("US:", values$current_state_fips, ":", values$current_county_fips)
+
+      # Build query
+      start_year <- input$year_selection[1]
+      start_date <- paste0(start_year, "-01-01")
+
+      qry <- list(
+        countycode = county_codes,
+        characteristicName = selected_parameters,
+        sampleMedia = "Water",
+        startDateLo = start_date
+      )
+
+      # Show loading indicator and start timer
+      values$loading_visible <- TRUE
+      values$fetch_start_time <- Sys.time()
+      values$status <- "Requesting data from USGS Water Quality Portal... (0 seconds)"
+
+      # Invoke the async task - UI will remain responsive
+      water_fetch_task$invoke(qry, values$current_location)
     })
     
 
@@ -1087,166 +1701,8 @@ server <- function(input, output, session) {
       showNotification("Interface refreshed and data cleared!", type = "message", duration = 3)
     })
     
-    # Shared data fetching function
-    fetch_water_data <- function() {
-      
-      # Update status
-      values$status <- "Fetching data from Water Quality Portal..."
-      
-      tryCatch({
-        # Build county codes for all selected counties
-        county_codes <- paste0("US:", values$current_state_fips, ":", values$current_county_fips)
-        
-        # Validate year selection
-        if (is.null(input$year_selection) || length(input$year_selection) != 2) {
-          showNotification("Please select a year range", type = "error", duration = 5)
-          values$loading_visible <- FALSE
-          return()
-        }
-        
-        # Determine start date from selected year range
-        start_year <- input$year_selection[1]
-        end_year <- input$year_selection[2]
-        start_date <- paste0(start_year, "-01-01")
-        
-        # Combine parameter selections
-        selected_parameters <- c(input$parameters_primary, input$parameters_additional)
-        
-        # Validate parameter selection
-        if (is.null(selected_parameters) || length(selected_parameters) == 0) {
-          showNotification("Please select at least one water quality parameter", type = "error", duration = 5)
-          values$loading_visible <- FALSE
-          return()
-        }
-        
-        # Build query (updated to match script changes)
-        qry <- list(
-          countycode         = county_codes,
-          characteristicName = selected_parameters,
-          sampleMedia        = "Water",
-          startDateLo        = start_date
-        )
-        
-        # Create year range text
-        if (start_year == end_year) {
-          year_range_text <- paste("Year", start_year)
-        } else {
-          year_range_text <- paste("Years", start_year, "-", end_year)
-        }
-        
-        values$status <- paste("Fetching data for", values$current_location, "(", county_codes, ") -", year_range_text, "- Parameters:", paste(selected_parameters, collapse = ", "))
-        
-        # Update status to show GET requests are running
-        values$status <- paste("Making requests to USGS Water Quality Portal for", values$current_location, "for", length(selected_parameters), "parameters...")
-        
-        # Pull the data
-        wq_raw <- do.call(readWQPdata,  qry)
-        meta_df   <- do.call(whatWQPsites, qry)
-        
-        # Update status after requests complete
-        values$status <- paste("Processing", nrow(wq_raw), "samples from", values$current_location, "...")
-        
-        if (nrow(wq_raw) == 0) {
-          values$status <- paste("No data found for", values$current_location, ". Please check your selection or try a different county.")
-          values$loading_visible <- FALSE
-          return()
-        }
-        
-        values$status <- paste("Processing", nrow(wq_raw), "samples from", values$current_location, "...")
-        
-        # Clean names
-        wq_clean <- wq_raw %>% janitor::clean_names()
-        meta <- meta_df %>% janitor::clean_names()
-        
-        # Process data following updated script logic
-        lat_col  <- grep("latitude",  names(meta), value = TRUE)[1]
-        lon_col  <- grep("longitude", names(meta), value = TRUE)[1]
-        
-        wq_tidy <- wq_clean %>%
-          transmute(
-            site_id  = monitoring_location_identifier,
-            date     = activity_start_date,
-            parameter= characteristic_name,
-            value    = as.numeric(result_measure_value),
-            unit     = result_measure_measure_unit_code
-          )
-        
-        meta_trim <- meta %>%
-          transmute(
-            site_id  = monitoring_location_identifier,
-            site_name = monitoring_location_name,
-            lat       = .data[[lat_col]],
-            lon       = .data[[lon_col]]
-          )
-        
-        # Join samples with metadata
-        wq_join <- wq_tidy %>%
-          left_join(meta_trim, by = "site_id") %>%
-          relocate(site_name, lat, lon, .after = site_id)
-        
-        # Standardise units: convert µg/L → mg/L
-        wq_join <- wq_join %>%
-          mutate(
-            value = if_else(unit %in% c("ug/l", "µg/l", "ug/L", "µg/L"),
-                            value / 1000, value),
-            unit  = if_else(unit %in% c("ug/l", "µg/l", "ug/L", "µg/L"),
-                            "mg/L", unit)
-          )
-        
-        # Create long format (wq_join)
-        values$long_data <- wq_join
-        
-        # Create wide format
-        wq_wide <- wq_join %>%
-          pivot_wider(names_from = parameter, values_from = value) %>%
-          mutate(
-            state  = input$state_selection,
-            county = values$current_location
-          ) %>%
-          select(state, county, site_id, site_name, lat, lon, date, everything(), -unit)
+    # NOTE: fetch_water_data() function removed - logic moved to ExtendedTask observers above
 
-        values$wide_data <- wq_wide
-        
-        # Get top 5 most active sites (by measurement count)
-        available_sites <- wq_join %>%
-          group_by(site_id, site_name) %>%
-          summarise(n_measurements = n(), .groups = "drop") %>%
-          arrange(desc(n_measurements)) %>%
-          slice_head(n = 5) %>%
-          select(site_id, site_name)
-        
-        values$available_sites <- available_sites
-        values$data_fetched <- TRUE
-        
-        # Update site selector choices
-        site_choices <- c("All sites" = "all", 
-                          setNames(available_sites$site_id, available_sites$site_name))
-        updateSelectInput(session, "site_selection", 
-                          choices = site_choices,
-                          selected = "all")
-        
-        # Get unique parameters found in the data
-        found_parameters <- unique(wq_join$parameter)
-        
-        values$status <- paste("Data processing complete for", values$current_location, "! Found", 
-                               nrow(wq_join), "measurements from", 
-                               length(unique(wq_join$site_id)), "monitoring sites. Year range:", year_range_text,
-                               "- Parameters found:", paste(found_parameters, collapse = ", "))
-        
-        showNotification("Data fetched successfully!", type = "message", duration = 5)
-        
-        # Hide loading indicator
-        values$loading_visible <- FALSE
-        
-      }, error = function(e) {
-        values$status <- paste("Error:", e$message)
-        showNotification(paste("Error fetching data:", e$message), type = "error", duration = 8)
-        
-        # Hide loading indicator
-        values$loading_visible <- FALSE
-      })
-    }
-    
     # Status output
     output$status_text <- renderText({
       values$status
@@ -1294,7 +1750,7 @@ server <- function(input, output, session) {
       data <- filtered_wide_data()
       if (!is.null(data)) {
         display_data <- data %>% select(-any_of(c("site_id", "row_id")))
-        DT::datatable(display_data, options = list(scrollX = TRUE, pageLength = 10))
+        DT::datatable(display_data, options = list(scrollX = TRUE, pageLength = 5))
       }
     })
     
@@ -1443,345 +1899,100 @@ server <- function(input, output, session) {
           default_county <- character(0)
         }
 
-        updateSelectizeInput(session, "air_county_selection", choices = county_choices, selected = default_county)
-      }
-    })
-    
-    # Show warning for large year ranges (air quality)
-    observeEvent(input$air_year_selection, {
-      if (!is.null(input$air_year_selection) && length(input$air_year_selection) == 2) {
-        year_range <- input$air_year_selection[2] - input$air_year_selection[1] + 1
-        if (year_range > 2) {
-          showNotification(
-            paste("Loading", year_range, "years of hourly air quality data may take a while."),
-            type = "warning", duration = 6
-          )
-        }
+        updateSelectInput(session, "air_county_selection",
+                          choices = c("Choose a county..." = "", county_choices),
+                          selected = default_county)
       }
     })
 
-    # Step 1: Find Monitors button
+    # Step 1: Find Sites button - now uses ExtendedTask for async API calls
     observeEvent(input$find_air_monitors, {
-      if (input$air_state_selection == "" ||
-          is.null(input$air_county_selection) || length(input$air_county_selection) == 0) {
-        showNotification("Please select both state and at least one county", type = "error", duration = 5)
-        return()
-      }
-      if (is.null(input$air_parameters) || length(input$air_parameters) == 0) {
-        showNotification("Please select at least one air quality parameter", type = "error", duration = 5)
+      if (input$air_state_selection == "" || input$air_county_selection == "") {
+        showNotification("Please select both state and county", type = "error", duration = 5)
         return()
       }
 
-      # Reset state before search
+      # Reset monitor list (but not data - we want to append)
       values$air_monitors_found <- FALSE
-      values$air_data_fetched <- FALSE
-      values$air_wide_data <- NULL
-      values$air_long_data <- NULL
       values$air_available_monitors <- NULL
+      values$air_site_params <- NULL
 
       county_info <- fips_clean %>%
         filter(state_name == input$air_state_selection,
-               county_display %in% input$air_county_selection)
+               county_display == input$air_county_selection)
 
       if (nrow(county_info) == 0) {
         showNotification("County not found in database.", type = "error", duration = 5)
         return()
       }
 
-      values$air_current_state_fips  <- county_info$state_fips[1]
-      values$air_current_county_fips <- county_info$county_fips   # vector of county FIPS
-      values$air_current_location <- if (length(input$air_county_selection) == 1) {
-        paste(input$air_county_selection, input$air_state_selection, sep = ", ")
-      } else {
-        paste0(paste(input$air_county_selection, collapse = ", "), ", ", input$air_state_selection)
-      }
-      values$air_status <- paste("Searching for monitors in", values$air_current_location, "...")
+      values$air_current_state_fips <- county_info$state_fips[1]
+      values$air_current_county_fips <- county_info$county_fips[1]
+      values$air_current_location <- paste(input$air_county_selection, input$air_state_selection, sep = ", ")
+
+      bdate <- as.Date(paste0(input$air_year_selection, "-01-01"))
+      edate <- as.Date(paste0(input$air_year_selection, "-12-31"))
+
+      # Show loading indicator and start timer
       values$air_loading_visible <- TRUE
+      values$air_fetch_start_time <- Sys.time()
+      values$air_base_status <- "Searching for monitoring sites..."
+      values$air_status <- paste0(values$air_base_status, " (0 seconds)")
 
-      tryCatch({
-        bdate <- as.Date(paste0(input$air_year_selection[1], "-01-01"))
-        edate <- as.Date(paste0(input$air_year_selection[2], "-12-31"))
-        params <- input$air_parameters
-
-        # Query monitors for each selected parameter × county combination
-        monitor_list <- list()
-        for (county_fips in county_info$county_fips) {
-          for (param in params) {
-            result <- tryCatch({
-              RAQSAPI::aqs_monitors_by_county(
-                parameter  = param,
-                bdate      = bdate,
-                edate      = edate,
-                stateFIPS  = county_info$state_fips[1],
-                countycode = county_fips
-              )
-            }, error = function(e) NULL)
-            if (!is.null(result)) monitor_list <- c(monitor_list, list(result))
-          }
-        }
-
-        all_raw <- bind_rows(monitor_list)
-
-        if (is.null(all_raw) || nrow(all_raw) == 0) {
-          values$air_status <- paste(
-            "No monitors found for the selected parameters in",
-            values$air_current_location,
-            "for the selected year range. Try different parameters or a wider year range."
-          )
-          values$air_loading_visible <- FALSE
-          showNotification("No monitors found. Try adjusting parameters or year range.",
-                           type = "warning", duration = 8)
-          return()
-        }
-
-        monitors_clean <- all_raw %>% janitor::clean_names()
-
-        # Find sites that report ALL requested parameters (mirrors notebook filter logic)
-        sites_summary <- monitors_clean %>%
-          group_by(state_code, county_code, site_number) %>%
-          summarise(params_available = list(unique(parameter_code)), .groups = "drop")
-
-        sites_all <- sites_summary %>%
-          filter(sapply(params_available, function(p) all(params %in% p)))
-
-        if (nrow(sites_all) == 0) {
-          # Fall back: sites with at least one of the requested params
-          sites_any <- sites_summary %>%
-            mutate(n_params = sapply(params_available, function(p) sum(params %in% p))) %>%
-            filter(n_params > 0) %>%
-            arrange(desc(n_params))
-
-          if (nrow(sites_any) == 0) {
-            values$air_status <- paste("No monitors found for the selected parameters in", values$air_current_location)
-            values$air_loading_visible <- FALSE
-            return()
-          }
-
-          showNotification(
-            "No single monitor has all selected parameters. Showing monitors with at least one.",
-            type = "warning", duration = 8
-          )
-          sites_with_data <- sites_any
-        } else {
-          sites_with_data <- sites_all
-        }
-
-        # Build display info per site
-        site_details <- monitors_clean %>%
-          select(state_code, county_code, site_number, address, city_name, county_name) %>%
-          distinct() %>%
-          inner_join(
-            sites_with_data %>% select(state_code, county_code, site_number),
-            by = c("state_code", "county_code", "site_number")
-          ) %>%
-          mutate(
-            display_city = ifelse(
-              tolower(trimws(city_name)) %in% c("not in a city", ""),
-              county_name, city_name
-            ),
-            site_label = paste0(site_number, " - ", address, ", ", display_city),
-            site_id    = paste0(county_code, "-", site_number)
-          ) %>%
-          distinct(site_id, .keep_all = TRUE)
-
-        values$air_available_monitors <- site_details
-
-        site_choices <- c("All monitors" = "all", setNames(site_details$site_id, site_details$site_label))
-        updateSelectInput(session, "air_site_selection",
-                          choices  = site_choices,
-                          selected = "all")
-
-        n_sites <- nrow(site_details)
-        values$air_status <- paste(
-          "Found", n_sites, "monitoring station(s) in", values$air_current_location,
-          "with data for the selected parameters.",
-          "Select station(s) below and click 'Step 2: Fetch Air Quality Data'."
-        )
-        values$air_monitors_found  <- TRUE
-        values$air_loading_visible <- FALSE
-
-        showNotification(paste("Found", n_sites, "monitor(s). Select one and fetch data."),
-                         type = "message", duration = 5)
-
-      }, error = function(e) {
-        values$air_status <- paste("Error finding monitors:", e$message)
-        showNotification(paste("Error:", e$message), type = "error", duration = 8)
-        values$air_loading_visible <- FALSE
-      })
+      # Invoke the async task - UI will remain responsive
+      air_monitors_task$invoke(
+        county_info$state_fips[1],
+        county_info$county_fips[1],
+        bdate,
+        edate,
+        values$air_current_location
+      )
     })
 
-    # Step 2: Fetch Air Quality Data function
-    fetch_air_data <- function() {
-      values$air_status <- "Fetching air quality sample data from EPA AQS..."
+    # NOTE: fetch_air_data() function removed - logic moved to ExtendedTask observers above
 
-      tryCatch({
-        site_selection <- input$air_site_selection
-        params   <- input$air_parameters
-        bdate    <- as.Date(paste0(input$air_year_selection[1], "-01-01"))
-        edate    <- as.Date(paste0(input$air_year_selection[2], "-12-31"))
-
-        # Handle "all" selection or multiple sites
-        if ("all" %in% site_selection) {
-          site_ids <- values$air_available_monitors$site_id
-        } else {
-          site_ids <- site_selection
-        }
-
-        n_sites <- length(site_ids)
-        values$air_status <- paste(
-          "Fetching data for", n_sites, "site(s) —",
-          length(params), "parameter(s),",
-          input$air_year_selection[1], "–", input$air_year_selection[2]
-        )
-
-        # Fetch data for each site
-        all_site_data <- list()
-
-        for (i in seq_along(site_ids)) {
-          site_id <- site_ids[i]
-
-          # Parse site_id: format is "county_code-site_number"
-          site_parts <- strsplit(site_id, "-")[[1]]
-          county_code <- site_parts[1]
-          site_number <- site_parts[2]
-
-          # Get site details for this site
-          site_info <- values$air_available_monitors %>%
-            filter(site_id == !!site_id)
-
-          site_label <- if (nrow(site_info) > 0) site_info$site_label[1] else site_id
-
-          values$air_status <- paste(
-            "Fetching site", i, "of", n_sites, "—", site_label
-          )
-
-          # Fetch sample data for each parameter separately (RAQSAPI takes one at a time)
-          raw_list <- lapply(params, function(param) {
-            tryCatch({
-              RAQSAPI::aqs_sampledata_by_site(
-                parameter  = param,
-                bdate      = bdate,
-                edate      = edate,
-                stateFIPS  = values$air_current_state_fips,
-                countycode = county_code,
-                sitenum    = site_number
-              )
-            }, error = function(e) {
-              message("Failed to fetch param ", param, " for site ", site_id, ": ", e$message)
-              NULL
-            })
-          })
-
-          raw_data <- bind_rows(Filter(Negate(is.null), raw_list))
-
-          if (!is.null(raw_data) && nrow(raw_data) > 0) {
-            # Add site identifier to the raw data
-            raw_data$site_id <- site_id
-            raw_data$site_label <- site_label
-            all_site_data[[i]] <- raw_data
-          }
-        }
-
-        # Combine data from all sites
-        combined_raw <- bind_rows(all_site_data)
-
-        if (is.null(combined_raw) || nrow(combined_raw) == 0) {
-          values$air_status <- paste(
-            "No data found for the selected site(s)",
-            "with the selected parameters and year range."
-          )
-          values$air_loading_visible <- FALSE
-          showNotification("No data found. Try a different site, parameters, or year range.",
-                           type = "warning", duration = 8)
-          return()
-        }
-
-        values$air_status <- paste("Processing", nrow(combined_raw), "records from", n_sites, "site(s)...")
-
-        aq_clean <- combined_raw %>% janitor::clean_names()
-
-        # Build combined datetime field and keep site identifiers
-        aq_tidy <- aq_clean %>%
-          mutate(
-            date_str       = format(as.Date(date_local), "%Y-%m-%d"),
-            datetime_local = as.POSIXct(paste(date_str, time_local), format = "%Y-%m-%d %H:%M")
-          ) %>%
-          select(site_id, site_label, site_number, county_name, latitude, longitude,
-                 datetime_local, parameter_code, sample_measurement) %>%
-          filter(!is.na(sample_measurement))
-
-        values$air_long_data <- aq_tidy
-
-        # Pivot to wide: one row per site+datetime, one column per parameter code
-        aq_wide <- aq_tidy %>%
-          pivot_wider(
-            id_cols = c(site_id, site_label, site_number, county_name, latitude, longitude, datetime_local),
-            names_from  = parameter_code,
-            values_from = sample_measurement,
-            values_fn   = mean
-          )
-
-        # Calculate composite AQI per row using parameter-code columns
-        param_code_cols <- intersect(names(aq_wide), names(aqi_breakpoints))
-        if (length(param_code_cols) > 0) {
-          aq_wide$composite_aqi <- apply(
-            aq_wide[, param_code_cols, drop = FALSE], 1,
-            function(row) {
-              conc_vec <- as.numeric(row)
-              names(conc_vec) <- param_code_cols
-              conc_vec <- conc_vec[!is.na(conc_vec)]
-              if (length(conc_vec) == 0) return(NA_real_)
-              calculate_composite_aqi(conc_vec)
-            }
-          )
-        }
-
-        # Rename parameter-code columns to human-readable display names
-        for (code in names(air_params)) {
-          if (code %in% names(aq_wide)) {
-            names(aq_wide)[names(aq_wide) == code] <- air_params[[code]]
-          }
-        }
-
-        # Format datetime and reorder columns with site info first
-        aq_wide <- aq_wide %>%
-          mutate(
-            datetime_local = format(datetime_local, "%Y-%m-%d %H:%M"),
-            location       = values$air_current_location
-          ) %>%
-          select(site_number, site_label, county_name, latitude, longitude, location,
-                 datetime_local, everything(), -site_id)
-
-        values$air_wide_data  <- aq_wide
-        values$air_data_fetched <- TRUE
-
-        values$air_status <- paste(
-          "Data ready —", n_sites, "site(s) in", values$air_current_location, "—",
-          nrow(aq_wide), "time points,", length(params), "pollutant(s) + composite AQI.",
-          "Year range:", input$air_year_selection[1], "-", input$air_year_selection[2]
-        )
-
-        showNotification(
-          paste("Air quality data fetched successfully!", n_sites, "site(s),", nrow(aq_wide), "records"),
-          type = "message", duration = 5
-        )
-        values$air_loading_visible <- FALSE
-
-      }, error = function(e) {
-        values$air_status <- paste("Error:", e$message)
-        showNotification(paste("Error fetching air quality data:", e$message), type = "error", duration = 8)
-        values$air_loading_visible <- FALSE
-      })
-    }
-
-    # Trigger Step 2 on button click
+    # Trigger Step 2 on button click - now uses ExtendedTask for async API calls
     observeEvent(input$fetch_air_data, {
-      if (is.null(input$air_site_selection) || length(input$air_site_selection) == 0) {
-        showNotification("Please find and select at least one monitoring site first (Step 1)", type = "error", duration = 5)
+      if (is.null(input$air_site_selection) || input$air_site_selection == "") {
+        showNotification("Please find and select a monitoring site first (Step 1)", type = "error", duration = 5)
         return()
       }
+      if (is.null(input$air_parameters) || length(input$air_parameters) == 0) {
+        showNotification("Please select at least one parameter to fetch", type = "error", duration = 5)
+        return()
+      }
+
+      site_id <- input$air_site_selection
+      params <- input$air_parameters
+      bdate <- as.Date(paste0(input$air_year_selection, "-01-01"))
+      edate <- as.Date(paste0(input$air_year_selection, "-12-31"))
+
+      # Parse site_id: format is "county_code-site_number"
+      site_parts <- strsplit(site_id, "-")[[1]]
+      county_code <- site_parts[1]
+      site_number <- site_parts[2]
+
+      # Get site label
+      site_info <- values$air_available_monitors %>%
+        filter(site_id == !!site_id)
+      site_label <- if (nrow(site_info) > 0) site_info$site_label[1] else site_id
+
+      # Show loading indicator and start timer
       values$air_loading_visible <- TRUE
-      fetch_air_data()
+      values$air_fetch_start_time <- Sys.time()
+      values$air_base_status <- paste0("Fetching ", input$air_year_selection, " data for ", site_label, "...")
+      values$air_status <- paste0(values$air_base_status, " (0 seconds)")
+
+      # Invoke the async task
+      air_data_task$invoke(
+        values$air_current_state_fips,
+        county_code,
+        site_number,
+        params,
+        bdate,
+        edate,
+        site_label
+      )
     })
 
     # Air quality refresh/clear
@@ -1795,23 +2006,59 @@ server <- function(input, output, session) {
       values$air_current_county_fips <- ""
       values$air_current_location <- ""
       values$air_loading_visible  <- FALSE
-      values$air_available_sites  <- NULL
       values$air_available_monitors <- NULL
+      values$air_site_params      <- NULL
 
-      updateSelectInput(session, "air_state_selection", selected = "")
+      updateSelectInput(session, "air_state_selection", selected = "Tennessee")
       updateSelectInput(session, "air_county_selection",
-                        choices = c("Choose a county..." = ""), selected = "")
-      updateSliderInput(session, "air_year_selection", value = c(2022, 2024))
-      updateCheckboxGroupInput(session, "air_parameters", selected = c("44201", "88101"))
+                        choices = {
+                          tn <- fips_clean[fips_clean$state_name == "Tennessee", "county_display", drop = TRUE]
+                          c("Choose a county..." = "", setNames(tn, tn))
+                        },
+                        selected = "Knox County")
+      updateSelectInput(session, "air_year_selection", selected = 2024)
       updateSelectInput(session, "air_site_selection",
-                        choices = c("Select a monitor..." = ""), selected = "")
+                        choices = c("Choose a site..." = ""), selected = "")
 
-      showNotification("Air quality interface refreshed!", type = "message", duration = 3)
+      showNotification("Air quality data cleared. All selections reset.", type = "message", duration = 3)
     })
 
     # Air quality status output
     output$air_status_text <- renderText({
       values$air_status
+    })
+
+    # Dynamic parameter checkboxes based on selected site
+    output$air_parameters_ui <- renderUI({
+      req(input$air_site_selection)
+      req(values$air_site_params)
+
+      site_id <- input$air_site_selection
+      site_params <- values$air_site_params %>%
+        filter(site_id == !!site_id)
+
+      if (nrow(site_params) == 0) {
+        return(p("No parameters available for this site."))
+      }
+
+      available_params <- unlist(site_params$params_available[1])
+
+      # Build choices with human-readable names
+      param_labels <- c(
+        "44201" = "Ozone (O3)",
+        "88101" = "PM2.5",
+        "81102" = "PM10",
+        "42101" = "Carbon Monoxide (CO)",
+        "42401" = "Sulfur Dioxide (SO2)",
+        "42602" = "Nitrogen Dioxide (NO2)"
+      )
+
+      choices <- setNames(available_params, param_labels[available_params])
+
+      checkboxGroupInput("air_parameters", NULL,
+                         choices = choices,
+                         selected = available_params,  # Pre-select all available
+                         inline = TRUE)
     })
 
     # Air quality data preview
@@ -1825,9 +2072,24 @@ server <- function(input, output, session) {
     # Air quality CSV download
     output$download_air_data <- downloadHandler(
       filename = function() {
-        location_safe <- gsub("[^A-Za-z0-9]", "_", values$air_current_location)
-        site_safe     <- gsub("[^A-Za-z0-9]", "_", input$air_site_selection)
-        paste0("air_quality_", location_safe, "_site_", site_safe, "_", Sys.Date(), ".csv")
+        data <- values$air_wide_data
+        if (is.null(data) || nrow(data) == 0) {
+          return(paste0("air_quality_", Sys.Date(), ".csv"))
+        }
+
+        # Extract year range from data
+        years <- unique(substr(data$datetime_local, 1, 4))
+        year_range <- if(length(years) == 1) {
+          years[1]
+        } else {
+          paste(min(years), max(years), sep = "-")
+        }
+
+        # Count unique sites
+        n_sites <- length(unique(data$site_number))
+        n_records <- nrow(data)
+
+        paste0("air_quality_", n_sites, "sites_", year_range, "_", n_records, "records_", Sys.Date(), ".csv")
       },
       content = function(file) {
         data <- values$air_wide_data

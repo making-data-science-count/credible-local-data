@@ -87,6 +87,12 @@ states_df <- fips_clean %>%
 # Dark: #2D3142
 
 custom_css <- "
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&display=swap');
+
+body, .content-wrapper, .main-sidebar, .main-header {
+  font-family: 'Nunito', sans-serif !important;
+}
+
 /* Still Water palette — one color family throughout
    Primary:   #3B7A8C  (lake teal)
    Dark:      #2A5F70  (deep water, hovers)

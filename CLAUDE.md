@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-CREDIBLE Local Data is a Shiny web application for collecting water quality data for educational purposes. The app fetches data from the USGS Water Quality Portal and exports it in CSV format or directly to CODAP (Common Online Data Analysis Platform) for interactive analysis.
+CREDIBLE Local Data is a Shiny web application for collecting water quality and biodiversity data for educational purposes. The app fetches data from the USGS Water Quality Portal and iNaturalist, and exports it in CSV format or directly to CODAP (Common Online Data Analysis Platform) for interactive analysis.
 
 **IMPORTANT:** Air quality and weather/climate features are currently archived (wrapped in `if(FALSE)` blocks) to focus development on perfecting the water quality functionality first. These features remain in the codebase and can be restored by removing the `if(FALSE)` wrappers marked with `## ARCHIVED` comments.
 
@@ -36,6 +36,7 @@ install.packages(c(
 ```
 
 Optional packages for extended functionality:
+- `rinat` - iNaturalist biodiversity data (no authentication needed)
 - `RAQSAPI` - Air quality data (requires EPA credentials)
 - `climateR` - Weather/climate data (install via `devtools::install_github('mikejohnson51/climateR')`)
 
@@ -43,11 +44,12 @@ Optional packages for extended functionality:
 
 ## Core Architecture
 
-### Current Design: Water Quality Focus
-The app currently features a single-tab design focused on water quality data:
+### Current Design
+The app features active tabs for water quality and biodiversity data:
 1. **Water Quality** (Active) - USGS Water Quality Portal via `dataRetrieval` package
-2. **Air Quality** (Archived) - EPA AQS Data Mart via `RAQSAPI` package
-3. **Weather & Climate** (Archived) - Multiple datasets via `climateR` package
+2. **Biodiversity** (Active) - iNaturalist citizen science observations via `rinat` package
+3. **Air Quality** (Archived) - EPA AQS Data Mart via `RAQSAPI` package
+4. **Weather & Climate** (Archived) - Multiple datasets via `climateR` package
 
 The archived tabs (Air Quality and Weather) remain in the codebase but are disabled with `if(FALSE)` wrappers. They can be restored by searching for `## ARCHIVED` comments and removing the wrappers.
 
@@ -58,6 +60,16 @@ The active water quality tab follows this structure:
 - **Year Range**: Slider for temporal filtering
 - **Data Fetching**: Action button triggers API calls
 - **Site/Station Selection**: Multi-select dropdown for spatial filtering
+- **Export Options**: CSV download + "Send to CODAP" button
+
+### Biodiversity Tab Pattern
+The biodiversity tab uses iNaturalist's citizen science observation data via the `rinat` package:
+- **Location Selection**: State → County dropdowns (same FIPS crosswalk, text-based place name search to iNaturalist)
+- **Taxon Filtering**: Dropdown for broad groups (Birds, Plants, Insects, etc.) + optional text search
+- **Date Range**: Date range picker for temporal filtering
+- **Quality Grade**: Research Grade only or All observations
+- **Max Results**: Slider to limit observation count (50-1000)
+- **Data Fetching**: Action button triggers async `rinat::get_inat_obs()` call
 - **Export Options**: CSV download + "Send to CODAP" button
 
 ### FIPS Crosswalk System

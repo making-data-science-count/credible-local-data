@@ -12,7 +12,11 @@
       "Bash(cat:*)",
       "Bash(timeout 10 Rscript:*)",
       "Bash(git worktree:*)",
-      "WebFetch(domain:projectcredible.com)"
+      "WebFetch(domain:projectcredible.com)",
+      "WebFetch(domain:www.inaturalist.org)",
+      "WebFetch(domain:docs.ropensci.org)",
+      "Bash(curl -s \"https://raw.githubusercontent.com/ropensci/rinat/master/R/get_inat_obs.R\")",
+      "Bash(curl -s \"https://www.inaturalist.org/observations.csv?per_page=1&page=1&quality_grade=research\")"
     ]
   }
 }

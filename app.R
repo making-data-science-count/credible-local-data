@@ -1,3 +1,33 @@
+# Install and load required packages (place this before other library() calls)
+cran_pkgs <- c(
+  "shiny","shinydashboard","DT","tidyverse","dataRetrieval",
+  "janitor","lubridate","promises","future","bslib","RAQSAPI","rinat"
+)
+
+missing_pkgs <- cran_pkgs[!cran_pkgs %in% rownames(installed.packages())]
+if (length(missing_pkgs) > 0) {
+  install.packages(missing_pkgs, dependencies = TRUE)
+}
+
+# Attempt to install climateR from GitHub if it's needed and missing
+if (!requireNamespace("climateR", quietly = TRUE)) {
+  if (!requireNamespace("remotes", quietly = TRUE)) {
+    install.packages("remotes")
+  }
+  tryCatch(
+    remotes::install_github("mikejohnson51/climateR"),
+    error = function(e) {
+      packageStartupMessage("Optional package 'climateR' not installed. Install with: remotes::install_github('mikejohnson51/climateR')")
+    }
+  )
+}
+
+# Load packages
+invisible(lapply(cran_pkgs, function(p) require(p, character.only = TRUE)))
+if (requireNamespace("climateR", quietly = TRUE)) {
+  require(climateR)
+}
+
 library(shiny)
 library(shinydashboard)
 library(DT)
@@ -8,6 +38,13 @@ library(lubridate)
 library(promises)
 library(future)
 plan(multisession)  # Enable async execution for ExtendedTask
+
+# Check if rinat is installed, if not provide instructions
+if (!requireNamespace("rinat", quietly = TRUE)) {
+  warning("rinat package not found. Install with: install.packages('rinat')")
+} else {
+  library(rinat)
+}
 
 # Check if RAQSAPI is installed, if not provide instructions
 if (!requireNamespace("RAQSAPI", quietly = TRUE)) {
@@ -78,6 +115,21 @@ fips_clean <- fips_xwalk %>%
 states_df <- fips_clean %>%
   distinct(state_name, state_fips) %>%
   arrange(state_name)
+
+# iNaturalist taxon group mapping (student-friendly name -> iconic taxon name)
+inat_taxon_groups <- c(
+  "All Groups" = "",
+  "Birds" = "Aves",
+  "Mammals" = "Mammalia",
+  "Reptiles" = "Reptilia",
+  "Amphibians" = "Amphibia",
+  "Fish" = "Actinopterygii",
+  "Insects" = "Insecta",
+  "Arachnids" = "Arachnida",
+  "Plants" = "Plantae",
+  "Fungi" = "Fungi",
+  "Mollusks" = "Mollusca"
+)
 
 # CREDIBLE Brand Colors
 # Primary (Coral Red): #E63946
@@ -943,7 +995,167 @@ ui <- dashboardPage(
              style = "color: #3B7A8C;", "Rivulet utils"),
       " (Python/Jupyter notebooks), originally developed as part of work on a grant by the National Science Foundation (Award #2445609). Notebook contributions by Michelle Wilkerson, Adelmo Eloy, Danny Zheng, Lucas Coletti, and Kolby Caban.")
 
-      ) # end Air Quality tabPanel
+      ), # end Air Quality tabPanel
+
+      # ======================================================================
+      # BIODIVERSITY (iNATURALIST) TAB
+      # ======================================================================
+      tabPanel("Biodiversity",
+        br(),
+        p(style = "color: #6c757d; font-size: 13px; margin-bottom: 4px;",
+          "Explore biodiversity observations from iNaturalist, a citizen science platform where people share wildlife and plant sightings."),
+        fluidRow(
+          box(
+            title = "Access Biodiversity Data", status = "primary", solidHeader = TRUE, width = 12,
+            fluidRow(
+              column(3,
+                     selectInput("inat_state_selection", "Select State:",
+                                 choices = c("Choose a state..." = "",
+                                             setNames(states_df$state_name, states_df$state_name)),
+                                 selected = "Tennessee")
+              ),
+              column(3,
+                     selectizeInput("inat_county_selection", "Select County/Counties:",
+                                 choices = {
+                                   tn <- fips_clean[fips_clean$state_name == "Tennessee", "county_display", drop = TRUE]
+                                   setNames(tn, tn)
+                                 },
+                                 selected = "Knox County",
+                                 multiple = TRUE,
+                                 options = list(placeholder = "Select one or more counties"))
+              ),
+              column(3,
+                     selectInput("inat_taxon_group", "Taxon Group:",
+                                 choices = names(inat_taxon_groups),
+                                 selected = "All Groups")
+              ),
+              column(3,
+                     textInput("inat_taxon_search", "Species Search (optional):",
+                               placeholder = "e.g., Robin, Oak, Monarch")
+              )
+            ),
+            fluidRow(
+              column(3,
+                     dateRangeInput("inat_date_range", "Date Range:",
+                                    start = Sys.Date() - 365,
+                                    end = Sys.Date(),
+                                    min = "2008-01-01",
+                                    max = Sys.Date())
+              ),
+              column(3,
+                     selectInput("inat_quality_grade", "Quality Grade:",
+                                 choices = c("Research Grade Only" = "research",
+                                             "All (including casual)" = "any"),
+                                 selected = "research")
+              ),
+              column(3,
+                     sliderInput("inat_max_results", "Max Observations:",
+                                 min = 50, max = 1000,
+                                 value = 200, step = 50)
+              )
+            ),
+
+            # Expandable help section
+            tags$details(
+              tags$summary("What do these options mean?"),
+              tags$div(style = "padding: 10px 0;",
+                tags$ul(
+                  tags$li(tags$strong("Taxon Group"), " - Filter by broad categories like Birds, Plants, or Insects. Choose 'All Groups' to see everything."),
+                  tags$li(tags$strong("Species Search"), " - Optionally search for a specific species by common or scientific name."),
+                  tags$li(tags$strong("Quality Grade"), " - 'Research Grade' observations have been verified by the community (at least 2 people agree on the species). 'All' includes unverified sightings."),
+                  tags$li(tags$strong("Max Observations"), " - Limits how many observations are returned. Larger numbers take longer to fetch.")
+                )
+              )
+            ),
+            br(),
+
+            fluidRow(
+              column(3,
+                     actionButton("fetch_inat_data", "Fetch Biodiversity Data",
+                                  class = "btn-primary", icon = icon("leaf")),
+                     br(), br(),
+                     actionButton("refresh_inat_data", "Refresh/Clear",
+                                  class = "btn-warning", icon = icon("refresh"))
+              )
+            ),
+
+            # Data Processing Status
+            hr(),
+            h4("Data Processing Status"),
+            verbatimTextOutput("inat_status_text")
+          )
+        ),
+
+        # Loading indicator
+        conditionalPanel(
+          condition = "output.inat_loading_visible == true",
+          fluidRow(
+            box(
+              title = "Data Processing", status = "primary", solidHeader = TRUE, width = 12,
+              div(class = "loading-container",
+                  div(class = "loading-spinner"),
+                  h4("Fetching Biodiversity Data..."),
+                  p("Connecting to iNaturalist and retrieving observations"),
+                  p("This may take 10-30 seconds depending on the number of observations",
+                    style = "font-size: 12px; margin-top: 10px; opacity: 0.8;")
+              )
+            )
+          )
+        ),
+
+        # Data preview and export
+        conditionalPanel(
+          condition = "output.inat_data_fetched == true",
+          fluidRow(
+            box(
+              title = "Biodiversity Data Preview", status = "warning", solidHeader = TRUE, width = 12,
+              DT::dataTableOutput("inat_preview"),
+              div(style = "margin-top: 15px;",
+                div(style = "margin-bottom: 12px;",
+                  actionButton("send_inat_to_codap", "Send to CODAP for Analysis",
+                               class = "btn-primary btn-lg", icon = icon("chart-bar"),
+                               style = "font-size: 16px; padding: 12px 24px;"),
+                  p(style = "font-size: 12px; color: #6c757d; margin-top: 5px; margin-bottom: 0;",
+                    "Open your data in CODAP to create graphs and explore patterns")
+                ),
+                div(
+                  downloadButton("download_inat_data", "Download as CSV",
+                                 class = "btn-warning", icon = icon("download")),
+                  span(style = "font-size: 12px; color: #6c757d; margin-left: 10px;",
+                       "For use in spreadsheet software")
+                )
+              )
+            )
+          )
+        ),
+
+        # Understanding Biodiversity Data reference section
+        fluidRow(
+          box(
+            title = "Understanding Your Data: Biodiversity Observations",
+            status = "info", solidHeader = TRUE, width = 12, collapsible = TRUE, collapsed = TRUE,
+            p("iNaturalist data comes from citizen scientists — everyday people sharing what they observe in nature. ",
+              "Here are some things to keep in mind when interpreting this data:"),
+            tags$ul(
+              tags$li(tags$strong("Observation bias: "), "More observations happen near roads, trails, and populated areas. Fewer observations doesn't necessarily mean fewer species."),
+              tags$li(tags$strong("Research Grade: "), "These observations have been reviewed and agreed upon by at least two people. They're more reliable for species identification."),
+              tags$li(tags$strong("Seasonal patterns: "), "Some species are only visible at certain times of year (e.g., migrating birds, blooming flowers)."),
+              tags$li(tags$strong("Common vs. rare: "), "Common species get reported more often. The data shows what people notice, not everything that exists.")
+            ),
+            hr(),
+            p(style = "font-size: 11px; color: #6c757d; margin-bottom: 0;",
+              tags$strong("Source: "),
+              "iNaturalist. A joint initiative of the ",
+              tags$a(href = "https://www.calacademy.org/", target = "_blank", "California Academy of Sciences"),
+              " and the ",
+              tags$a(href = "https://www.nationalgeographic.org/", target = "_blank", "National Geographic Society"),
+              ". ",
+              tags$a(href = "https://www.inaturalist.org/", target = "_blank", "www.inaturalist.org")
+            )
+          )
+        )
+
+      ) # end Biodiversity tabPanel
     ), # end tabsetPanel
 
     # Footer
@@ -986,7 +1198,16 @@ server <- function(input, output, session) {
       air_available_monitors = NULL,
       air_site_params = NULL,
       air_fetch_start_time = NULL,  # Track when fetch started for elapsed time display
-      air_base_status = NULL  # Base message for elapsed time updates (avoids race condition)
+      air_base_status = NULL,  # Base message for elapsed time updates (avoids race condition)
+
+      # iNaturalist / Biodiversity data
+      inat_data = NULL,
+      inat_data_fetched = FALSE,
+      inat_status = "Ready to fetch biodiversity data...",
+      inat_current_location = "",
+      inat_loading_visible = FALSE,
+      inat_fetch_start_time = NULL,
+      inat_fetched_state = ""
 
       ## ARCHIVED: Weather reactive values
       ## To restore: Uncomment the sections below
@@ -1043,6 +1264,18 @@ server <- function(input, output, session) {
     })
     outputOptions(output, "weather_data_fetched", suspendWhenHidden = FALSE)
 
+    # Make iNaturalist loading_visible available for the conditional panel
+    output$inat_loading_visible <- reactive({
+      values$inat_loading_visible
+    })
+    outputOptions(output, "inat_loading_visible", suspendWhenHidden = FALSE)
+
+    # Make iNaturalist data_fetched available for the conditional panel
+    output$inat_data_fetched <- reactive({
+      values$inat_data_fetched
+    })
+    outputOptions(output, "inat_data_fetched", suspendWhenHidden = FALSE)
+
     # ============================================================
     # ExtendedTask for Water Quality API calls (async)
     # ============================================================
@@ -1054,6 +1287,38 @@ server <- function(input, output, session) {
         list(wq_raw = wq_raw, meta_df = meta_df, location = location)
       }, seed = TRUE)
     }) |> bslib::bind_task_button("fetch_data")
+
+    # ============================================================
+    # ExtendedTask for iNaturalist API calls (async)
+    # ============================================================
+    inat_fetch_task <- ExtendedTask$new(function(query, taxon_name, place, quality, maxresults) {
+      future({
+        # Combine user search query with place name for geographic context
+        # (rinat does not have a place_guess input parameter; query is the best available filter)
+        combined_query <- if (!is.null(query) && nchar(query) > 0) {
+          paste(query, place)
+        } else {
+          place
+        }
+        results <- rinat::get_inat_obs(
+          query = combined_query,
+          taxon_name = if (!is.null(taxon_name) && nchar(taxon_name) > 0) taxon_name else NULL,
+          quality = if (!is.null(quality) && quality != "any") quality else NULL,
+          maxresults = maxresults,
+          geo = TRUE
+        )
+        results
+      }, seed = TRUE)
+    }) |> bslib::bind_task_button("fetch_inat_data")
+
+    # Observer for elapsed time display during iNaturalist fetch
+    observe({
+      invalidateLater(1000)
+      if (values$inat_loading_visible && !is.null(values$inat_fetch_start_time)) {
+        elapsed <- round(difftime(Sys.time(), values$inat_fetch_start_time, units = "secs"))
+        values$inat_status <- paste0("Requesting data from iNaturalist... (", elapsed, " seconds)")
+      }
+    })
 
     # Observer for elapsed time display during water quality fetch
     observe({
@@ -2151,6 +2416,288 @@ server <- function(input, output, session) {
         duration = 3
       )
     })
+
+    # =============================================================================
+    # BIODIVERSITY (iNATURALIST) SERVER LOGIC
+    # =============================================================================
+
+    # Status text output
+    output$inat_status_text <- renderText({
+      values$inat_status
+    })
+
+    # Update iNaturalist county choices when state changes
+    observeEvent(input$inat_state_selection, {
+      if (input$inat_state_selection != "") {
+        state_info <- states_df[states_df$state_name == input$inat_state_selection, ]
+
+        if (nrow(state_info) > 0) {
+          counties_for_state <- fips_clean %>%
+            filter(state_fips == state_info$state_fips) %>%
+            arrange(county_name)
+
+          county_choices <- setNames(counties_for_state$county_display, counties_for_state$county_display)
+          default_county <- if(input$inat_state_selection == "Tennessee") "Knox County" else character(0)
+        } else {
+          county_choices <- c()
+          default_county <- character(0)
+        }
+
+        updateSelectizeInput(session, "inat_county_selection", choices = county_choices, selected = default_county)
+      }
+    })
+
+    # Fetch biodiversity data
+    observeEvent(input$fetch_inat_data, {
+
+      # Validate inputs
+      if (input$inat_state_selection == "" || is.null(input$inat_county_selection) || length(input$inat_county_selection) == 0) {
+        showNotification("Please select state and at least one county", type = "error", duration = 5)
+        return()
+      }
+
+      # Build place name for iNaturalist search
+      place_name <- if (length(input$inat_county_selection) == 1) {
+        paste(input$inat_county_selection, input$inat_state_selection, sep = ", ")
+      } else {
+        paste(input$inat_state_selection)
+      }
+
+      # Warn user if multiple counties selected (iNaturalist text search falls back to state-wide)
+      if (length(input$inat_county_selection) > 1) {
+        showNotification(
+          paste("Multiple counties selected: searching all of", input$inat_state_selection,
+                "instead. iNaturalist does not support multi-county filtering directly."),
+          type = "warning", duration = 8
+        )
+      }
+
+      # Build location display
+      values$inat_current_location <- if (length(input$inat_county_selection) == 1) {
+        paste(input$inat_county_selection, input$inat_state_selection, sep = ", ")
+      } else {
+        paste0(paste(input$inat_county_selection, collapse = ", "), ", ", input$inat_state_selection)
+      }
+
+      # Save state for use in async result handler (avoid stale input references)
+      values$inat_fetched_state <- input$inat_state_selection
+
+      # Get taxon name from selection
+      taxon_name <- inat_taxon_groups[input$inat_taxon_group]
+
+      # Get search query
+      search_query <- input$inat_taxon_search
+
+      # Get quality grade
+      quality <- input$inat_quality_grade
+
+      # Show loading indicator and start timer
+      values$inat_loading_visible <- TRUE
+      values$inat_fetch_start_time <- Sys.time()
+      values$inat_status <- "Requesting data from iNaturalist... (0 seconds)"
+
+      # Invoke the async task
+      inat_fetch_task$invoke(search_query, taxon_name, place_name, quality, input$inat_max_results)
+    })
+
+    # Handle iNaturalist fetch results
+    observeEvent(inat_fetch_task$result(), {
+      result <- inat_fetch_task$result()
+
+      if (is.null(result) || nrow(result) == 0) {
+        values$inat_status <- paste0(
+          "No biodiversity observations found for ", values$inat_current_location, ".\n\n",
+          "This might mean:\n",
+          "- Few iNaturalist users have recorded observations in this area\n",
+          "- No observations match your taxon or date filters\n\n",
+          "Try: Select a different county, expand your date range, change taxon group, or select 'All' quality grade."
+        )
+        showNotification(
+          paste("No observations found for", values$inat_current_location, "- try different filters"),
+          type = "warning", duration = 8
+        )
+        values$inat_loading_visible <- FALSE
+        values$inat_fetch_start_time <- NULL
+        return()
+      }
+
+      # Filter by date range
+      result$datetime <- as.Date(result$datetime)
+      date_range <- input$inat_date_range
+      result <- result %>%
+        filter(datetime >= date_range[1] & datetime <= date_range[2])
+
+      if (nrow(result) == 0) {
+        values$inat_status <- paste0(
+          "Observations were found but none fell within your selected date range.\n",
+          "Try expanding your date range."
+        )
+        showNotification("No observations in selected date range", type = "warning", duration = 5)
+        values$inat_loading_visible <- FALSE
+        values$inat_fetch_start_time <- NULL
+        return()
+      }
+
+      # Map iconic taxon names to friendly names
+      taxon_name_map <- setNames(names(inat_taxon_groups), inat_taxon_groups)
+
+      # Select and rename student-friendly columns
+      inat_clean <- result %>%
+        transmute(
+          common_name = common_name,
+          scientific_name = scientific_name,
+          taxon_group = ifelse(iconic_taxon_name %in% names(taxon_name_map),
+                               taxon_name_map[iconic_taxon_name],
+                               iconic_taxon_name),
+          date = as.character(datetime),
+          location = place_guess,
+          latitude = as.numeric(latitude),
+          longitude = as.numeric(longitude),
+          quality_grade = quality_grade,
+          observer = user_login,
+          observation_url = url,
+          state = values$inat_fetched_state,
+          county = values$inat_current_location
+        )
+
+      values$inat_data <- inat_clean
+      values$inat_data_fetched <- TRUE
+
+      values$inat_status <- paste("Found", nrow(inat_clean), "observations from",
+                                   values$inat_current_location, "!",
+                                   length(unique(inat_clean$scientific_name)), "unique species.",
+                                   "Date range:", min(inat_clean$date),
+                                   "to", max(inat_clean$date))
+
+      showNotification(
+        paste("Found", nrow(inat_clean), "biodiversity observations!"),
+        type = "message", duration = 5
+      )
+
+      values$inat_loading_visible <- FALSE
+      values$inat_fetch_start_time <- NULL
+    })
+
+    # Handle iNaturalist fetch errors
+    observeEvent(inat_fetch_task$status(), {
+      if (inat_fetch_task$status() == "error") {
+        err <- inat_fetch_task$error()
+        # rinat throws an error (not empty df) when zero results are found
+        if (grepl("zero results", err$message, fixed = TRUE)) {
+          values$inat_status <- paste0(
+            "No biodiversity observations found for ", values$inat_current_location, ".\n\n",
+            "This might mean:\n",
+            "- Few iNaturalist users have recorded observations in this area\n",
+            "- No observations match your taxon or date filters\n\n",
+            "Try: Select a different county, expand your date range, change taxon group, or select 'All' quality grade."
+          )
+          showNotification(
+            paste("No observations found for", values$inat_current_location, "- try different filters"),
+            type = "warning", duration = 8
+          )
+        } else {
+          values$inat_status <- paste("Error fetching biodiversity data:", err$message)
+          showNotification(paste("Error:", err$message), type = "error", duration = 8)
+        }
+        values$inat_loading_visible <- FALSE
+        values$inat_fetch_start_time <- NULL
+      }
+    })
+
+    # Refresh/Clear iNaturalist data
+    observeEvent(input$refresh_inat_data, {
+      values$inat_data <- NULL
+      values$inat_data_fetched <- FALSE
+      values$inat_status <- "Ready to fetch biodiversity data..."
+      values$inat_current_location <- ""
+      values$inat_loading_visible <- FALSE
+      values$inat_fetch_start_time <- NULL
+
+      updateSelectInput(session, "inat_state_selection", selected = "")
+      updateSelectizeInput(session, "inat_county_selection",
+                          choices = c("Choose county/counties..." = ""),
+                          selected = character(0))
+      updateSelectInput(session, "inat_taxon_group", selected = "All Groups")
+      updateTextInput(session, "inat_taxon_search", value = "")
+      updateDateRangeInput(session, "inat_date_range",
+                           start = Sys.Date() - 365, end = Sys.Date())
+      updateSelectInput(session, "inat_quality_grade", selected = "research")
+      updateSliderInput(session, "inat_max_results", value = 200)
+    })
+
+    # iNaturalist data table preview
+    output$inat_preview <- DT::renderDataTable({
+      if (!is.null(values$inat_data)) {
+        display_data <- values$inat_data %>%
+          select(-any_of(c("observation_url")))
+        DT::datatable(display_data,
+                      options = list(scrollX = TRUE, pageLength = 10),
+                      rownames = FALSE)
+      }
+    })
+
+    # CSV download for iNaturalist data
+    output$download_inat_data <- downloadHandler(
+      filename = function() {
+        location_safe <- gsub("[^A-Za-z0-9]", "_", values$inat_current_location)
+        paste0("biodiversity_", location_safe, "_", Sys.Date(), ".csv")
+      },
+      content = function(file) {
+        if (!is.null(values$inat_data)) {
+          write_csv(values$inat_data, file)
+        }
+      }
+    )
+
+    # =============================================================================
+    # CODAP EXPORT SERVER LOGIC - Biodiversity
+    # =============================================================================
+
+    observeEvent(input$send_inat_to_codap, {
+      data <- values$inat_data
+
+      if (is.null(data) || nrow(data) == 0) {
+        showNotification("No data available to send to CODAP. Please fetch biodiversity data first.",
+                         type = "error", duration = 5)
+        return()
+      }
+
+      dataset_name <- "BiodiversityData"
+
+      # Convert data frame columns into CODAP attributes format
+      attributes <- lapply(names(data), function(col_name) {
+        list(
+          name = col_name,
+          title = col_name
+        )
+      })
+
+      # Convert data frame rows into a list of cases
+      cases <- lapply(seq_len(nrow(data)), function(i) {
+        row_data <- as.list(data[i, ])
+        row_data <- lapply(row_data, function(x) {
+          if (is.na(x)) return(NULL) else return(x)
+        })
+        return(row_data)
+      })
+
+      session$sendCustomMessage(
+        type = "sendToCODAP",
+        message = list(
+          datasetName = dataset_name,
+          attributes = attributes,
+          cases = cases
+        )
+      )
+
+      showNotification(
+        paste("Sending", nrow(data), "rows to CODAP as dataset:", dataset_name),
+        type = "message",
+        duration = 3
+      )
+    })
+
+    # Handle CODAP export status for biodiversity (uses same JS handler as water quality)
 
     # =============================================================================
     ## ARCHIVED: WEATHER & CLIMATE SERVER LOGIC - Focusing on Water Quality first

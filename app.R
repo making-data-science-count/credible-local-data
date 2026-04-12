@@ -37,6 +37,7 @@ library(janitor)
 library(lubridate)
 library(promises)
 library(future)
+library(bslib)
 plan(multisession)  # Enable async execution for ExtendedTask
 
 # Check if rinat is installed, if not provide instructions

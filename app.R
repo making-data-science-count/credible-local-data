@@ -70,6 +70,9 @@ if (!requireNamespace("climateR", quietly = TRUE)) {
 }
 
 # Load comprehensive FIPS crosswalk data from local file
+if (!file.exists("fips-xwalk.csv")) {
+  stop("FIPS crosswalk file 'fips-xwalk.csv' not found. Please ensure it is in the app directory.")
+}
 fips_xwalk <- read_csv("fips-xwalk.csv", show_col_types = FALSE)
 
 # Create state abbreviation to full name lookup

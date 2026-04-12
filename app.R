@@ -1253,17 +1253,17 @@ server <- function(input, output, session) {
     })
     outputOptions(output, "air_monitors_found", suspendWhenHidden = FALSE)
 
-    # Make weather loading_visible available for the conditional panel
-    output$weather_loading_visible <- reactive({
-      values$weather_loading_visible
-    })
-    outputOptions(output, "weather_loading_visible", suspendWhenHidden = FALSE)
+    # ARCHIVED Make weather loading_visible available for the conditional panel
+    #output$weather_loading_visible <- reactive({
+    #  values$weather_loading_visible
+    #})
+    #outputOptions(output, "weather_loading_visible", suspendWhenHidden = FALSE)
     
     # Make weather data_fetched available for the conditional panel
-    output$weather_data_fetched <- reactive({
-      values$weather_data_fetched
-    })
-    outputOptions(output, "weather_data_fetched", suspendWhenHidden = FALSE)
+    #output$weather_data_fetched <- reactive({
+    #  values$weather_data_fetched
+    #})
+    #outputOptions(output, "weather_data_fetched", suspendWhenHidden = FALSE)
 
     # Make iNaturalist loading_visible available for the conditional panel
     output$inat_loading_visible <- reactive({

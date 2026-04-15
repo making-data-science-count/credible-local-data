@@ -1934,7 +1934,8 @@ server <- function(input, output, session) {
         characteristicName = selected_parameters,
         sampleMedia = "Water",
         startDateLo = start_date,
-        startDateHi = end_date
+        startDateHi = end_date,
+        siteType = "Stream"
       )
 
       # Show loading indicator and start timer

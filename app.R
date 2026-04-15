@@ -1924,13 +1924,17 @@ server <- function(input, output, session) {
 
       # Build query
       start_year <- input$year_selection[1]
+      end_year <- input$year_selection[2]
+      
       start_date <- paste0(start_year, "-01-01")
+      end_date <- paste0(end_year, "-12-31")
 
       qry <- list(
         countycode = county_codes,
         characteristicName = selected_parameters,
         sampleMedia = "Water",
-        startDateLo = start_date
+        startDateLo = start_date,
+        startDateHi = end_date
       )
 
       # Show loading indicator and start timer

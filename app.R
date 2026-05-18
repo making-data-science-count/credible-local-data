@@ -394,83 +394,77 @@ ui <- dashboardPage(
         Shiny.addCustomMessageHandler('sendToCODAP', function(payload) {
           console.log('Received sendToCODAP message from Shiny:', payload);
 
-          var datasetName = payload.datasetName || 'MyData';
-          var datasetTitle = payload.datasetTitle || datasetName;
-          var attributes = payload.attributes || [];
-          var cases = payload.cases || [];
+          var ctxName    = payload.contextName  || 'WaterQualityQueries';
+          var ctxTitle   = payload.contextTitle || 'CREDIBLE Water Quality Data';
+          var parentAttrs = payload.parentAttrs || [];
+          var childAttrs  = payload.childAttrs  || [];
+          var items      = payload.items || [];
+          var queryLabel = payload.queryLabel || 'query';
+          var nRows      = payload.nRows || items.length;
 
           var btn = document.getElementById('send_to_codap');
           var statusEl = document.getElementById('codap_send_status');
-
           function setStatus(text, cls) {
-            if (statusEl) {
-              statusEl.className = cls || '';
-              statusEl.textContent = text || '';
-            }
+            if (statusEl) { statusEl.className = cls || ''; statusEl.textContent = text || ''; }
           }
           function setBusy(busy) {
             if (!btn) return;
             btn.disabled = busy;
-            if (busy) { btn.classList.add('disabled'); }
-            else { btn.classList.remove('disabled'); }
+            if (busy) { btn.classList.add('disabled'); } else { btn.classList.remove('disabled'); }
           }
 
           setBusy(true);
           setStatus('Sending data to CODAP…', 'codap-status codap-status-busy');
 
-          // Step 1: Create CODAP dataContext with attributes
-          codapInterface('create', 'dataContext', {
-            name: datasetName,
-            title: datasetTitle,
-            description: 'Data exported from CREDIBLE Local Data',
-            collections: [{
-              name: datasetName + '_collection',
-              title: datasetTitle,
-              attrs: attributes
-            }]
+          // Is the shared data context already present?
+          codapInterface('get', 'dataContext[' + ctxName + ']')
+          .then(function() { return true; })
+          .catch(function() { return false; })
+          .then(function(exists) {
+            if (exists) { return false; }  // reuse it; this query becomes a new parent case
+            // First query: create the hierarchical context (Queries -> Measurements)
+            return codapInterface('create', 'dataContext', {
+              name: ctxName,
+              title: ctxTitle,
+              description: 'Water quality queries from CREDIBLE Local Data',
+              collections: [
+                { name: 'queries', title: 'Queries', attrs: parentAttrs },
+                { name: 'measurements', title: 'Measurements', parent: 'queries', attrs: childAttrs }
+              ]
+            }).then(function() { return true; });  // created
           })
-          .then(function(response) {
-            // Step 2: Send data rows as cases to CODAP
-            return codapInterface('create', 'dataContext[' + datasetName + '].item', cases);
+          .then(function(created) {
+            // Add this query's rows. CODAP groups them under one parent
+            // (Queries) case by the parent attribute values; fetched_at makes
+            // every Send its own parent case.
+            return codapInterface('create', 'dataContext[' + ctxName + '].item', items)
+              .then(function() { return created; });
           })
-          .then(function(response) {
-            // Step 3: Auto-open the data as a case table so students see it
-            // right away. The data is already in CODAP at this point, so a
-            // failure here (e.g. older CODAP) must NOT fail the whole send.
+          .then(function(created) {
+            // Open one case table the first time only; later sends update it live.
+            if (!created) { return null; }
             return codapInterface('create', 'component', {
               type: 'caseTable',
-              dataContext: datasetName,
-              name: datasetName + '_table',
-              title: datasetTitle
-            }).catch(function(e) {
-              console.warn('Could not auto-open case table:', e);
-              return null;
-            });
+              dataContext: ctxName,
+              name: ctxName + '_table',
+              title: ctxTitle
+            }).catch(function(e) { console.warn('Could not auto-open case table:', e); return null; });
           })
-          .then(function(response) {
-            console.log('Cases sent successfully, count:', cases.length);
+          .then(function() {
             setBusy(false);
-            setStatus('✓ Sent ' + cases.length + ' rows to CODAP', 'codap-status codap-status-ok');
-
-            // Notify Shiny of success
+            setStatus('✓ Added ' + nRows + ' rows under “' + queryLabel + '”', 'codap-status codap-status-ok');
             Shiny.setInputValue('codap_export_status', {
               success: true,
-              message: 'Sent ' + cases.length + ' rows to CODAP as ' + datasetTitle + '. Look for it in CODAP to make graphs.',
+              message: 'Added ' + nRows + ' rows to CODAP under the query “' + queryLabel + '”. Open the Queries table to compare your queries.',
               timestamp: new Date().getTime()
             }, {priority: 'event'});
           })
           .catch(function(error) {
             console.error('Error sending data to CODAP:', error);
-
             var errorMsg = error.message || error.error || 'Unknown error';
-            if (error.helpUrl) {
-              errorMsg += ' Visit: ' + error.helpUrl;
-            }
-
+            if (error.helpUrl) { errorMsg += ' Visit: ' + error.helpUrl; }
             setBusy(false);
             setStatus('Couldn’t send to CODAP — see the message below.', 'codap-status codap-status-err');
-
-            // Notify Shiny of error
             Shiny.setInputValue('codap_export_status', {
               success: false,
               message: errorMsg,
@@ -1302,34 +1296,73 @@ server <- function(input, output, session) {
       dataset_name <- gsub("(^_+|_+$)", "", gsub("[^A-Za-z0-9]+", "_", dataset_title))
       if (!nzchar(dataset_name)) dataset_name <- "WaterQualityData"
       
-      # Convert data frame columns into CODAP attributes format
-      # Format: list(name = colName, title = colName)
-      attributes <- lapply(names(data), function(col_name) {
-        list(
-          name = col_name,
-          title = col_name
-        )
+      # ---- Hierarchical CODAP export ----
+      # One shared data context with a parent "Queries" collection (one case
+      # per query) and a child "Measurements" collection (the rows). Each Send
+      # adds a new parent case + its rows, so students can compare multiple
+      # queries side by side in a single CODAP table.
+      context_name  <- "WaterQualityQueries"
+      context_title <- "CREDIBLE Water Quality Data"
+
+      year_range <- if (!is.null(input$year_selection) && length(input$year_selection) == 2) {
+        if (input$year_selection[1] == input$year_selection[2]) {
+          as.character(input$year_selection[1])
+        } else {
+          paste0(input$year_selection[1], "-", input$year_selection[2])
+        }
+      } else {
+        ""
+      }
+      aggregation <- if (!is.null(input$time_aggregation) && input$time_aggregation != "none") {
+        switch(input$time_aggregation,
+          "day" = "Daily", "week" = "Weekly",
+          "month" = "Monthly", "year" = "Yearly", "None")
+      } else {
+        "None"
+      }
+
+      # Non-measurement columns (everything else is a parameter)
+      non_param_cols <- c("state", "county", "site_id", "site_name", "lat", "lon",
+                          "date", "n_measurements", "date_range")
+      param_cols <- setdiff(names(data), non_param_cols)
+
+      # Parent ("Queries") fields - identical for every row of this Send.
+      # fetched_at makes each Send its own parent case (no accidental merging).
+      query_fields <- list(
+        query       = dataset_title,
+        location    = loc,
+        year_range  = year_range,
+        aggregation = aggregation,
+        parameters  = paste(param_cols, collapse = ", "),
+        n_rows      = nrow(data),
+        fetched_at  = format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+      )
+      parent_attrs <- lapply(names(query_fields), function(n) list(name = n, title = n))
+
+      # Child ("Measurements") columns: drop state/county (carried by the
+      # parent) so attribute names stay unique across the context.
+      child_data  <- data[, setdiff(names(data), c("state", "county")), drop = FALSE]
+      child_attrs <- lapply(names(child_data), function(n) list(name = n, title = n))
+
+      # Flat items: each row carries the parent fields + its measurements.
+      # CODAP nests them under the matching parent case automatically.
+      items <- lapply(seq_len(nrow(child_data)), function(i) {
+        row_data <- as.list(child_data[i, ])
+        row_data <- lapply(row_data, function(x) if (length(x) == 1 && is.na(x)) NULL else x)
+        c(query_fields, row_data)
       })
-      
-      # Convert data frame rows into a list of cases
-      # Each case is a list of values corresponding to the attributes
-      cases <- lapply(seq_len(nrow(data)), function(i) {
-        row_data <- as.list(data[i, ])
-        # Convert any NA values to null for JSON serialization
-        row_data <- lapply(row_data, function(x) {
-          if (is.na(x)) return(NULL) else return(x)
-        })
-        return(row_data)
-      })
-      
-      # Send data to JavaScript via session$sendCustomMessage()
+
+      # Send to JavaScript via session$sendCustomMessage()
       session$sendCustomMessage(
         type = "sendToCODAP",
         message = list(
-          datasetName = dataset_name,
-          datasetTitle = dataset_title,
-          attributes = attributes,
-          cases = cases
+          contextName  = context_name,
+          contextTitle = context_title,
+          parentAttrs  = parent_attrs,
+          childAttrs   = child_attrs,
+          items        = items,
+          queryLabel   = dataset_title,
+          nRows        = nrow(data)
         )
       )
       # In-progress / success feedback is shown inline next to the button

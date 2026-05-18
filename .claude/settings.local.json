@@ -33,7 +33,9 @@
       "Bash(sed -n '970,978p' /Users/joshuarosenberg/credible-local-data/app.R)",
       "Bash(sed -i.bak '786,816d' /Users/joshuarosenberg/credible-local-data/app.R)",
       "Bash(sed -n '780,795p' /Users/joshuarosenberg/credible-local-data/app.R)",
-      "Bash(awk 'NR==460||NR==461||NR==803||NR==804{printf \"%d: [%s]\\\\n\", NR, $0}' /Users/joshuarosenberg/credible-local-data/app.R)"
+      "Bash(awk 'NR==460||NR==461||NR==803||NR==804{printf \"%d: [%s]\\\\n\", NR, $0}' /Users/joshuarosenberg/credible-local-data/app.R)",
+      "Bash(git add *)",
+      "Bash(git commit *)"
     ]
   }
 }

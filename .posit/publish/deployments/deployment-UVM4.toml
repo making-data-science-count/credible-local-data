@@ -10,8 +10,8 @@ id = "019e038f-de68-97e9-f1fd-27ea35fe0e32"
 dashboard_url = "https://connect.posit.cloud/joshuafrosenberg/content/019e038f-de68-97e9-f1fd-27ea35fe0e32"
 direct_url = "https://019e038f-de68-97e9-f1fd-27ea35fe0e32.share.connect.posit.cloud"
 logs_url = "https://connect.posit.cloud/joshuafrosenberg/content/019e038f-de68-97e9-f1fd-27ea35fe0e32/history"
-deployed_at = "2026-05-18T01:45:14.585Z"
-bundle_id = "019e38c1-fe68-25d2-8364-db07110ec260"
+deployed_at = "2026-05-18T01:54:45.259Z"
+bundle_id = "019e38ca-cf18-21da-987b-089c2fb64864"
 files = [
     ".posit/publish/credible-local-data-MNQM.toml",
     ".posit/publish/deployments/deployment-UVM4.toml",
@@ -43,34 +43,6 @@ version = "4.5.2"
 [[renv.r.repositories]]
 name = "CRAN"
 url = "https://cloud.r-project.org"
-
-[renv.packages.CFtime]
-package = "CFtime"
-version = "1.7.3"
-source = "Repository"
-title = "Using CF-Compliant Calendars with Climate Projection Data"
-"authors@r" = "person(\"Patrick\", \"Van Laake\", , \"patrick@vanlaake.net\", role = c(\"aut\", \"cre\", \"cph\"))"
-description = "Support for all calendars as specified in the Climate and Forecast  (CF) Metadata Conventions for climate and forecasting data. The CF Metadata  Conventions is widely used for distributing files with climate observations  or projections, including the Coupled Model Intercomparison Project (CMIP)  data used by climate change scientists and the Intergovernmental Panel on Climate Change (IPCC). This package specifically allows the user to work  with any of the CF-compliant calendars (many of which are not compliant with  POSIXt). The CF time coordinate is formally defined in the CF Metadata  Conventions document available at <https://cf-convention.github.io/Data/cf-conventions/cf-conventions-1.13/cf-conventions.html#time-coordinate>."
-license = "MIT + file LICENSE"
-encoding = "UTF-8"
-roxygen_note = "7.3.3"
-imports = [
-    "R6",
-]
-suggests = [
-    "rmarkdown",
-    "testthat (>= 3.0.0)",
-    "stringr",
-]
-url = "https://r-cf.github.io/CFtime/, https://github.com/R-CF/CFtime"
-bug_reports = "https://github.com/R-CF/CFtime/issues"
-"config/testthat/edition" = "3"
-collate = "'api.R' 'CFCalendar.R' 'CFCalendar360.R' 'CFCalendar365.R' 'CFCalendar366.R' 'CFCalendarJulian.R' 'CFCalendarNone.R' 'CFCalendarProleptic.R' 'CFCalendarStandard.R' 'CFCalendarTAI.R' 'CFCalendarUTC.R' 'CFClimatology.R' 'CFtime-package.R' 'CFtime.R' 'helpers.R' 'zzz.R'"
-"config/needs/website" = "rmarkdown"
-needs_compilation = "no"
-author = "Patrick Van Laake [aut, cre, cph]"
-maintainer = "Patrick Van Laake <patrick@vanlaake.net>"
-repository = "CRAN"
 
 [renv.packages.DBI]
 package = "DBI"
@@ -223,51 +195,6 @@ author = "Brian Ripley [aut, cre, cph], Bill Venables [aut, cph], Douglas M. Bat
 maintainer = "Brian Ripley <Brian.Ripley@R-project.org>"
 repository = "CRAN"
 
-[renv.packages.Matrix]
-package = "Matrix"
-version = "1.7-4"
-source = "Repository"
-version_note = "do also bump src/version.h, inst/include/Matrix/version.h"
-date = "2025-08-27"
-priority = "recommended"
-title = "Sparse and Dense Matrix Classes and Methods"
-description = "A rich hierarchy of sparse and dense matrix classes, including general, symmetric, triangular, and diagonal matrices with numeric, logical, or pattern entries.  Efficient methods for operating on such matrices, often wrapping the 'BLAS', 'LAPACK', and 'SuiteSparse' libraries."
-license = "GPL (>= 2) | file LICENCE"
-url = "https://Matrix.R-forge.R-project.org"
-bug_reports = "https://R-forge.R-project.org/tracker/?atid=294&group_id=61"
-contact = "Matrix-authors@R-project.org"
-"authors@r" = "c(person(\"Douglas\", \"Bates\", role = \"aut\", comment = c(ORCID = \"0000-0001-8316-9503\")), person(\"Martin\", \"Maechler\", role = c(\"aut\", \"cre\"), email = \"mmaechler+Matrix@gmail.com\", comment = c(ORCID = \"0000-0002-8685-9910\")), person(\"Mikael\", \"Jagan\", role = \"aut\", comment = c(ORCID = \"0000-0002-3542-2938\")), person(\"Timothy A.\", \"Davis\", role = \"ctb\", comment = c(ORCID = \"0000-0001-7614-6899\", \"SuiteSparse libraries\", \"collaborators listed in dir(system.file(\\\"doc\\\", \\\"SuiteSparse\\\", package=\\\"Matrix\\\"), pattern=\\\"License\\\", full.names=TRUE, recursive=TRUE)\")), person(\"George\", \"Karypis\", role = \"ctb\", comment = c(ORCID = \"0000-0003-2753-1437\", \"METIS library\", \"Copyright: Regents of the University of Minnesota\")), person(\"Jason\", \"Riedy\", role = \"ctb\", comment = c(ORCID = \"0000-0002-4345-4200\", \"GNU Octave's condest() and onenormest()\", \"Copyright: Regents of the University of California\")), person(\"Jens\", \"Oehlschlägel\", role = \"ctb\", comment = \"initial nearPD()\"), person(\"R Core Team\", role = \"ctb\", comment = c(ROR = \"02zz1nj61\", \"base R's matrix implementation\")))"
-depends = [
-    "R (>= 4.4)",
-    "methods",
-]
-imports = [
-    "grDevices",
-    "graphics",
-    "grid",
-    "lattice",
-    "stats",
-    "utils",
-]
-suggests = [
-    "MASS",
-    "datasets",
-    "sfsmisc",
-    "tools",
-]
-enhances = [
-    "SparseM",
-    "graph",
-]
-lazy_data = "no"
-lazy_data_note = "not possible, since we use data/*.R and our S4 classes"
-build_resave_data = "no"
-encoding = "UTF-8"
-needs_compilation = "yes"
-author = "Douglas Bates [aut] (ORCID: <https://orcid.org/0000-0001-8316-9503>), Martin Maechler [aut, cre] (ORCID: <https://orcid.org/0000-0002-8685-9910>), Mikael Jagan [aut] (ORCID: <https://orcid.org/0000-0002-3542-2938>), Timothy A. Davis [ctb] (ORCID: <https://orcid.org/0000-0001-7614-6899>, SuiteSparse libraries, collaborators listed in dir(system.file(\"doc\", \"SuiteSparse\", package=\"Matrix\"), pattern=\"License\", full.names=TRUE, recursive=TRUE)), George Karypis [ctb] (ORCID: <https://orcid.org/0000-0003-2753-1437>, METIS library, Copyright: Regents of the University of Minnesota), Jason Riedy [ctb] (ORCID: <https://orcid.org/0000-0002-4345-4200>, GNU Octave's condest() and onenormest(), Copyright: Regents of the University of California), Jens Oehlschlägel [ctb] (initial nearPD()), R Core Team [ctb] (ROR: <https://ror.org/02zz1nj61>, base R's matrix implementation)"
-maintainer = "Martin Maechler <mmaechler+Matrix@gmail.com>"
-repository = "CRAN"
-
 [renv.packages.R6]
 package = "R6"
 version = "2.6.1"
@@ -294,64 +221,6 @@ author = "Winston Chang [aut, cre], Posit Software, PBC [cph, fnd]"
 maintainer = "Winston Chang <winston@posit.co>"
 repository = "CRAN"
 
-[renv.packages.RAQSAPI]
-package = "RAQSAPI"
-version = "2.0.5"
-source = "Repository"
-type = "Package"
-title = "A Simple Interface to the US EPA Air Quality System Data Mart API"
-description = "Retrieve air monitoring data and associated metadata from the US Environmental Protection Agency's Air Quality System service using functions. See <https://aqs.epa.gov/aqsweb/documents/data_api.html> for details about the US EPA Data Mart API."
-encoding = "UTF-8"
-"authors@r" = "c(person(given=\"Clinton\", family=\"Mccrowey\", email=\"mccrowey.clinton@epa.gov\", role=c(\"cre\", \"aut\"), comment=\"United States Environmental Protection Agency Region 3 Air and Radiation Division\"), person(given=\"Timothy\", family=\"Sharac\", role=c(\"ctb\",\"rev\"), email=NULL, comment=\"United States Environmental Protection Agency\"), person(given = \"Nick\", family = \"Mangus\", email = NULL, role=c(\"rev\"), comment=\"United States Environmental Protection Agency\"), person(given = \"Doug\", family = \"Jager\", email=NULL, role=c(\"ctb\", \"rev\"), comment=\"United States Environmental Protection Agency\"), person(given = \"Ryan\",family = \"Brown\", email=NULL, role=c(\"ctb\", \"rev\"), comment=\"United States Environmental Protection Agency\"), person(given = \"Daniel\", family = \"Garver\", email=NULL, role=c(\"ctb\", \"rev\"), comment=\"United States Environmental Protection Agency\"), person(given = \"Benjamin\", family = \"Wells\", email=NULL, role=c(\"ctb\", \"rev\"), comment=\"United States Environmental Protection Agency\"), person(given = \"Hayley\", family= \"Brittingham\", email = NULL, role=c(\"crr\", \"ctr\"), comment=\"Neptune and Company\"), person(given = \"Jeffrey\", family = \"Hollister\", email = \"hollister.jeff@epa.gov\", role = c(\"rev\"), comment = c(\"United States Environmental Protection Agency\", ORCID = \"0000-0002-9254-9740\" ) ), person(given = \"Edward\", family = \"Andrews\", email = \"edward.s.andrews@wv.gov\", role = c(\"rev\", \"ctb\"), comment = \"West Virginia Department of Environmental Protection, Division of Air Quality\" ) )"
-url = "https://github.com/USEPA/RAQSAPI/, https://aqs.epa.gov/aqsweb/documents/data_api.html"
-bug_reports = "https://github.com/USEPA/RAQSAPI/issues"
-depends = [
-    "R (>= 4.0.0)",
-]
-imports = [
-    "dplyr",
-    "glue",
-    "httr2",
-    "lifecycle",
-    "lubridate",
-    "magrittr",
-    "purrr",
-    "rlang",
-    "stringr",
-    "tibble",
-]
-suggests = [
-    "covr",
-    "devtools",
-    "keyring",
-    "knitr",
-    "markdown",
-    "rmarkdown",
-    "roxygen2",
-    "spelling",
-    "testthat (>= 3.0.0)",
-    "usethis",
-    "withr",
-]
-system_requirements = "package manual and Vignettes require pandoc (>= 1.14) http://pandoc.org)"
-roxygen_note = "7.3.1"
-vignette_builder = "knitr"
-build_vignettes = "true"
-byte_compile = "true"
-license = "MIT + file LICENSE"
-license_is_foss = "yes"
-needs_compilation = "no"
-license_restricts_use = "no"
-language = "en-US"
-collate = "'AQSAPI_helperfunctions.R' 'bysite.R' 'bycounty.R' 'bystate.R' 'byma.R' 'bypqao.R' 'bycbsa.R' 'bybox.R' 'RAQSAPIlistfunctions.R' 'setupfunctions.R' 'zzz.R' 'RAQSAPI-package.R' 'deprecated.R'"
-copyright = "United States Environmental Protection Agency"
-rd_macros = "lifecycle"
-"config/testthat/edition" = "3"
-"x-schema.org-keywords" = "United State Environmental Protection Agency, Environmental-data-retrieval, Air-Quality-System, AQS-Datamart, Air-monitoring, Environmental-monitoring"
-author = "Clinton Mccrowey [cre, aut] (United States Environmental Protection Agency Region 3 Air and Radiation Division), Timothy Sharac [ctb, rev] (United States Environmental Protection Agency), Nick Mangus [rev] (United States Environmental Protection Agency), Doug Jager [ctb, rev] (United States Environmental Protection Agency), Ryan Brown [ctb, rev] (United States Environmental Protection Agency), Daniel Garver [ctb, rev] (United States Environmental Protection Agency), Benjamin Wells [ctb, rev] (United States Environmental Protection Agency), Hayley Brittingham [crr, ctr] (Neptune and Company), Jeffrey Hollister [rev] (United States Environmental Protection Agency, <https://orcid.org/0000-0002-9254-9740>), Edward Andrews [rev, ctb] (West Virginia Department of Environmental Protection, Division of Air Quality)"
-maintainer = "Clinton Mccrowey <mccrowey.clinton@epa.gov>"
-repository = "CRAN"
-
 [renv.packages.RColorBrewer]
 package = "RColorBrewer"
 version = "1.1-3"
@@ -367,34 +236,6 @@ depends = [
 description = "Provides color schemes for maps (and other graphics) designed by Cynthia Brewer as described at http://colorbrewer2.org."
 license = "Apache License 2.0"
 needs_compilation = "no"
-repository = "CRAN"
-
-[renv.packages.RNetCDF]
-package = "RNetCDF"
-version = "2.11-1"
-source = "Repository"
-date = "2025-04-30"
-title = "Interface to 'NetCDF' Datasets"
-"authors@r" = "c(person(\"Pavel\", \"Michna\", role = \"aut\", email = \"rnetcdf-devel@bluewin.ch\"), person(\"Milton\", \"Woods\", role = c(\"aut\", \"cre\"), email = \"miltonjwoods@gmail.com\"))"
-depends = [
-    "R (>= 3.0.0)",
-]
-system_requirements = "netcdf (>=4.1.3), udunits-2 (>=2.0.4)"
-suggests = [
-    "bit64",
-    "tools",
-]
-enhances = [
-    "pbdMPI",
-    "Rmpi",
-]
-description = "An interface to the 'NetCDF' file formats designed by Unidata for efficient storage of array-oriented scientific data and descriptions. Most capabilities of 'NetCDF' version 4 are supported. Optional conversions of time units are enabled by 'UDUNITS' version 2, also from Unidata."
-license = "GPL (>= 2) | file LICENSE"
-url = "https://github.com/mjwoods/RNetCDF https://www.unidata.ucar.edu/software/netcdf/ https://www.unidata.ucar.edu/software/udunits/"
-bug_reports = "https://github.com/mjwoods/RNetCDF/issues"
-needs_compilation = "yes"
-author = "Pavel Michna [aut], Milton Woods [aut, cre]"
-maintainer = "Milton Woods <miltonjwoods@gmail.com>"
 repository = "CRAN"
 
 [renv.packages.Rcpp]
@@ -469,74 +310,6 @@ author = "Object-Oriented Programming Working Group [cph], Davis Vaughan [aut], 
 maintainer = "Hadley Wickham <hadley@posit.co>"
 repository = "CRAN"
 
-[renv.packages.arrow]
-package = "arrow"
-version = "24.0.0"
-source = "Repository"
-title = "Integration to 'Apache' 'Arrow'"
-"authors@r" = "c( person(\"Neal\", \"Richardson\", email = \"neal.p.richardson@gmail.com\", role = c(\"aut\")), person(\"Ian\", \"Cook\", email = \"ianmcook@gmail.com\", role = c(\"aut\")), person(\"Nic\", \"Crane\", email = \"thisisnic@gmail.com\", role = c(\"aut\")), person(\"Dewey\", \"Dunnington\", role = c(\"aut\"), email = \"dewey@fishandwhistle.net\", comment = c(ORCID = \"0000-0002-9415-4582\")), person(\"Romain\", \"Fran\\u00e7ois\", role = c(\"aut\"), comment = c(ORCID = \"0000-0002-2444-4226\")), person(\"Jonathan\", \"Keane\", email = \"jkeane@gmail.com\", role = c(\"aut\", \"cre\")), person(\"Bryce\", \"Mecum\", email = \"brycemecum@gmail.com\", role = c(\"aut\")), person(\"Drago\\u0219\", \"Moldovan-Gr\\u00fcnfeld\", email = \"dragos.mold@gmail.com\", role = c(\"aut\")), person(\"Jeroen\", \"Ooms\", email = \"jeroen@berkeley.edu\", role = c(\"aut\")), person(\"Jacob\", \"Wujciak-Jens\", email = \"jacob@wujciak.de\", role = c(\"aut\")), person(\"Javier\", \"Luraschi\", email = \"javier@rstudio.com\", role = c(\"ctb\")), person(\"Karl\", \"Dunkle Werner\", email = \"karldw@users.noreply.github.com\", role = c(\"ctb\"), comment = c(ORCID = \"0000-0003-0523-7309\")), person(\"Jeffrey\", \"Wong\", email = \"jeffreyw@netflix.com\", role = c(\"ctb\")), person(\"Apache Arrow\", email = \"dev@arrow.apache.org\", role = c(\"aut\", \"cph\")) )"
-description = "'Apache' 'Arrow' <https://arrow.apache.org/> is a cross-language development platform for in-memory data. It specifies a standardized language-independent columnar memory format for flat and hierarchical data, organized for efficient analytic operations on modern hardware. This package provides an interface to the 'Arrow C++' library."
-depends = [
-    "R (>= 4.1)",
-]
-license = "Apache License (>= 2.0)"
-url = "https://github.com/apache/arrow/, https://arrow.apache.org/docs/r/"
-bug_reports = "https://github.com/apache/arrow/issues"
-encoding = "UTF-8"
-language = "en-US"
-system_requirements = "C++20; for AWS S3 support on Linux, libcurl and openssl (optional); cmake >= 3.26 (build-time only, and only for full source build)"
-biarch = "true"
-imports = [
-    "assertthat",
-    "bit64 (>= 0.9-7)",
-    "glue",
-    "methods",
-    "purrr",
-    "R6",
-    "rlang (>= 1.0.0)",
-    "stats",
-    "tidyselect (>= 1.0.0)",
-    "utils",
-    "vctrs",
-]
-roxygen_note = "7.3.3"
-"config/testthat/edition" = "3"
-"config/build/bootstrap" = "TRUE"
-suggests = [
-    "blob",
-    "curl",
-    "cli",
-    "DBI",
-    "dbplyr",
-    "decor",
-    "distro",
-    "dplyr",
-    "duckdb (>= 0.2.8)",
-    "hms",
-    "jsonlite",
-    "knitr",
-    "lubridate",
-    "pillar",
-    "pkgload",
-    "reticulate",
-    "rmarkdown",
-    "stringi",
-    "stringr",
-    "sys",
-    "testthat (>= 3.3.0)",
-    "tibble",
-    "tzdb",
-    "withr",
-]
-linking_to = [
-    "cpp11 (>= 0.4.2)",
-]
-collate = "'arrowExports.R' 'enums.R' 'arrow-object.R' 'type.R' 'array-data.R' 'arrow-datum.R' 'array.R' 'arrow-info.R' 'arrow-package.R' 'arrow-tabular.R' 'buffer.R' 'chunked-array.R' 'io.R' 'compression.R' 'scalar.R' 'compute.R' 'config.R' 'csv.R' 'dataset.R' 'dataset-factory.R' 'dataset-format.R' 'dataset-partition.R' 'dataset-scan.R' 'dataset-write.R' 'dictionary.R' 'dplyr-across.R' 'dplyr-arrange.R' 'dplyr-by.R' 'dplyr-collect.R' 'dplyr-count.R' 'dplyr-datetime-helpers.R' 'dplyr-distinct.R' 'dplyr-eval.R' 'dplyr-filter.R' 'dplyr-funcs-agg.R' 'dplyr-funcs-augmented.R' 'dplyr-funcs-conditional.R' 'dplyr-funcs-datetime.R' 'dplyr-funcs-doc.R' 'dplyr-funcs-math.R' 'dplyr-funcs-simple.R' 'dplyr-funcs-string.R' 'dplyr-funcs-type.R' 'expression.R' 'dplyr-funcs.R' 'dplyr-glimpse.R' 'dplyr-group-by.R' 'dplyr-join.R' 'dplyr-mutate.R' 'dplyr-select.R' 'dplyr-slice.R' 'dplyr-summarize.R' 'dplyr-union.R' 'record-batch.R' 'table.R' 'dplyr.R' 'duckdb.R' 'extension.R' 'feather.R' 'field.R' 'filesystem.R' 'flight.R' 'install-arrow.R' 'ipc-stream.R' 'json.R' 'memory-pool.R' 'message.R' 'metadata.R' 'parquet.R' 'python.R' 'query-engine.R' 'record-batch-reader.R' 'record-batch-writer.R' 'reexports-bit64.R' 'reexports-tidyselect.R' 'schema.R' 'udf.R' 'util.R'"
-needs_compilation = "yes"
-author = "Neal Richardson [aut], Ian Cook [aut], Nic Crane [aut], Dewey Dunnington [aut] (ORCID: <https://orcid.org/0000-0002-9415-4582>), Romain François [aut] (ORCID: <https://orcid.org/0000-0002-2444-4226>), Jonathan Keane [aut, cre], Bryce Mecum [aut], Dragoș Moldovan-Grünfeld [aut], Jeroen Ooms [aut], Jacob Wujciak-Jens [aut], Javier Luraschi [ctb], Karl Dunkle Werner [ctb] (ORCID: <https://orcid.org/0000-0003-0523-7309>), Jeffrey Wong [ctb], Apache Arrow [aut, cph]"
-maintainer = "Jonathan Keane <jkeane@gmail.com>"
-repository = "CRAN"
-
 [renv.packages.askpass]
 package = "askpass"
 version = "1.2.1"
@@ -560,28 +333,6 @@ language = "en-US"
 needs_compilation = "yes"
 author = "Jeroen Ooms [aut, cre] (<https://orcid.org/0000-0002-4035-0289>)"
 maintainer = "Jeroen Ooms <jeroenooms@gmail.com>"
-repository = "CRAN"
-
-[renv.packages.assertthat]
-package = "assertthat"
-version = "0.2.1"
-source = "Repository"
-title = "Easy Pre and Post Assertions"
-"authors@r" = "person(\"Hadley\", \"Wickham\", , \"hadley@rstudio.com\", c(\"aut\", \"cre\"))"
-description = "An extension to stopifnot() that makes it easy to declare  the pre and post conditions that you code should satisfy, while also  producing friendly error messages so that your users know what's gone wrong."
-license = "GPL-3"
-imports = [
-    "tools",
-]
-suggests = [
-    "testthat",
-    "covr",
-]
-roxygen_note = "6.0.1"
-collate = "'assert-that.r' 'on-failure.r' 'assertions-file.r' 'assertions-scalar.R' 'assertions.r' 'base.r' 'base-comparison.r' 'base-is.r' 'base-logical.r' 'base-misc.r' 'utils.r' 'validate-that.R'"
-needs_compilation = "no"
-author = "Hadley Wickham [aut, cre]"
-maintainer = "Hadley Wickham <hadley@rstudio.com>"
 repository = "CRAN"
 
 [renv.packages.backports]
@@ -726,33 +477,6 @@ roxygen_note = "7.3.3.9000"
 needs_compilation = "no"
 author = "Hadley Wickham [aut], Kirill Müller [cre], RStudio [cph, fnd]"
 maintainer = "Kirill Müller <kirill@cynkra.com>"
-repository = "CRAN"
-
-[renv.packages.boot]
-package = "boot"
-version = "1.3-32"
-source = "Repository"
-priority = "recommended"
-date = "2025-08-29"
-"authors@r" = "c(person(\"Angelo\", \"Canty\", role = \"aut\", email = \"cantya@mcmaster.ca\",  comment = \"author of original code for S\"), person(\"Brian\", \"Ripley\", role = c(\"aut\", \"trl\"), email = \"Brian.Ripley@R-project.org\", comment = \"conversion to R, maintainer 1999--2022, author of parallel support\"), person(\"Alessandra R.\", \"Brazzale\", role = c(\"ctb\", \"cre\"), email = \"brazzale@stat.unipd.it\", comment = \"minor bug fixes\"))"
-maintainer = "Alessandra R. Brazzale <brazzale@stat.unipd.it>"
-note = "Maintainers are not available to give advice on using a package they did not author."
-description = "Functions and datasets for bootstrapping from the book \"Bootstrap Methods and Their Application\" by A. C. Davison and  D. V. Hinkley (1997, CUP), originally written by Angelo Canty for S."
-title = "Bootstrap Functions"
-depends = [
-    "R (>= 3.0.0)",
-    "graphics",
-    "stats",
-]
-suggests = [
-    "MASS",
-    "survival",
-]
-lazy_data = "yes"
-byte_compile = "yes"
-license = "Unlimited"
-needs_compilation = "no"
-author = "Angelo Canty [aut] (author of original code for S), Brian Ripley [aut, trl] (conversion to R, maintainer 1999--2022, author of parallel support), Alessandra R. Brazzale [ctb, cre] (minor bug fixes)"
 repository = "CRAN"
 
 [renv.packages.broom]
@@ -1144,67 +868,6 @@ author = "Gábor Csárdi [aut, cre], Hadley Wickham [ctb], Kirill Müller [ctb],
 maintainer = "Gábor Csárdi <gabor@posit.co>"
 repository = "CRAN"
 
-[renv.packages.climateR]
-package = "climateR"
-version = "0.3.7"
-source = "GitHub"
-type = "Package"
-title = "climateR"
-description = "Find, subset, and retrive geospatial data by AOI."
-"authors@r" = "c(person(\"Mike\", \"Johnson\",  role = c(\"aut\", \"cre\"),  email = \"mike.johnson@noaa.gov\"), person(\"Justin\", \"Singh\",  role = \"ctb\"), person(\"ESIP\", role = \"fnd\"), person(\"NOAA OWP\", role = \"fnd\"))"
-maintainer = "Mike Johnson <mike.johnson@noaa.gov>"
-bug_reports = "https://github.com/mikejohnson51/climateR/issues"
-url = "https://github.com/mikejohnson51/climateR"
-depends = [
-    "R (>= 4.1.0)",
-]
-imports = [
-    "arrow",
-    "dplyr",
-    "future.apply",
-    "glue",
-    "gifski",
-    "ncmeta",
-    "RNetCDF",
-    "rnz",
-    "terra",
-    "utils",
-    "methods",
-    "stats",
-    "grDevices",
-]
-license = "MIT + file LICENSE"
-encoding = "UTF-8"
-lazy_data = "true"
-roxygen_note = "7.3.2"
-suggests = [
-    "httr",
-    "AOI",
-    "covr",
-    "testthat (>= 3.0.0)",
-    "rmarkdown",
-    "knitr",
-    "kableExtra",
-    "distill",
-    "ggplot2",
-    "patchwork",
-    "sf",
-    "tidyr",
-    "tidyterra",
-    "reticulate",
-]
-remotes = "mikejohnson51/AOI, dblodgett-usgs/ncmeta, DOI-USGS/rnz"
-"config/testthat/edition" = "3"
-vignette_builder = "knitr"
-remote_type = "github"
-remote_host = "api.github.com"
-remote_repo = "climateR"
-remote_username = "mikejohnson51"
-remote_ref = "HEAD"
-remote_sha = "541b9c8366c208645ab86ea2f65cb71c40f9d904"
-needs_compilation = "no"
-author = "Mike Johnson [aut, cre], Justin Singh [ctb], ESIP [fnd], NOAA OWP [fnd]"
-
 [renv.packages.clipr]
 package = "clipr"
 version = "0.8.0"
@@ -1234,48 +897,6 @@ system_requirements = "xclip (https://github.com/astrand/xclip) or xsel (http://
 needs_compilation = "no"
 author = "Matthew Lincoln [aut, cre] (<https://orcid.org/0000-0002-4387-3384>), Louis Maddox [ctb], Steve Simpson [ctb], Jennifer Bryan [ctb]"
 maintainer = "Matthew Lincoln <matthew.d.lincoln@gmail.com>"
-repository = "CRAN"
-
-[renv.packages.cluster]
-package = "cluster"
-version = "2.1.8.1"
-source = "Repository"
-version_note = "Last CRAN: 2.1.8 on 2024-12-10; 2.1.7 on 2024-12-06; 2.1.6 on 2023-11-30; 2.1.5 on 2023-11-27"
-date = "2025-03-11"
-priority = "recommended"
-title = "\"Finding Groups in Data\": Cluster Analysis Extended Rousseeuw et al."
-description = "Methods for Cluster analysis.  Much extended the original from Peter Rousseeuw, Anja Struyf and Mia Hubert, based on Kaufman and Rousseeuw (1990) \"Finding Groups in Data\"."
-maintainer = "Martin Maechler <maechler@stat.math.ethz.ch>"
-"authors@r" = "c(person(\"Martin\",\"Maechler\", role = c(\"aut\",\"cre\"), email=\"maechler@stat.math.ethz.ch\", comment = c(ORCID = \"0000-0002-8685-9910\")) ,person(\"Peter\", \"Rousseeuw\", role=\"aut\", email=\"peter.rousseeuw@kuleuven.be\", comment = c(\"Fortran original\", ORCID = \"0000-0002-3807-5353\")) ,person(\"Anja\", \"Struyf\", role=\"aut\", comment= \"S original\") ,person(\"Mia\", \"Hubert\", role=\"aut\", email= \"Mia.Hubert@uia.ua.ac.be\", comment = c(\"S original\", ORCID = \"0000-0001-6398-4850\")) ,person(\"Kurt\", \"Hornik\", role=c(\"trl\", \"ctb\"), email=\"Kurt.Hornik@R-project.org\", comment=c(\"port to R; maintenance(1999-2000)\", ORCID=\"0000-0003-4198-9911\")) ,person(\"Matthias\", \"Studer\", role=\"ctb\") ,person(\"Pierre\", \"Roudier\", role=\"ctb\") ,person(\"Juan\",   \"Gonzalez\", role=\"ctb\") ,person(\"Kamil\",  \"Kozlowski\", role=\"ctb\") ,person(\"Erich\",  \"Schubert\", role=\"ctb\", comment = c(\"fastpam options for pam()\", ORCID = \"0000-0001-9143-4880\")) ,person(\"Keefe\",  \"Murphy\", role=\"ctb\", comment = \"volume.ellipsoid({d >= 3})\") #not yet ,person(\"Fischer-Rasmussen\", \"Kasper\", role = \"ctb\", comment = \"Gower distance for CLARA\") )"
-depends = [
-    "R (>= 3.5.0)",
-]
-imports = [
-    "graphics",
-    "grDevices",
-    "stats",
-    "utils",
-]
-suggests = [
-    "MASS",
-    "Matrix",
-]
-suggests_note = "MASS: two examples using cov.rob() and mvrnorm(); Matrix tools for testing"
-enhances = [
-    "mvoutlier",
-    "fpc",
-    "ellipse",
-    "sfsmisc",
-]
-enhances_note = "xref-ed in man/*.Rd"
-lazy_load = "yes"
-lazy_data = "yes"
-byte_compile = "yes"
-build_resave_data = "no"
-license = "GPL (>= 2)"
-url = "https://svn.r-project.org/R-packages/trunk/cluster/"
-needs_compilation = "yes"
-author = "Martin Maechler [aut, cre] (<https://orcid.org/0000-0002-8685-9910>), Peter Rousseeuw [aut] (Fortran original, <https://orcid.org/0000-0002-3807-5353>), Anja Struyf [aut] (S original), Mia Hubert [aut] (S original, <https://orcid.org/0000-0001-6398-4850>), Kurt Hornik [trl, ctb] (port to R; maintenance(1999-2000), <https://orcid.org/0000-0003-4198-9911>), Matthias Studer [ctb], Pierre Roudier [ctb], Juan Gonzalez [ctb], Kamil Kozlowski [ctb], Erich Schubert [ctb] (fastpam options for pam(), <https://orcid.org/0000-0001-9143-4880>), Keefe Murphy [ctb] (volume.ellipsoid({d >= 3}))"
 repository = "CRAN"
 
 [renv.packages.codetools]
@@ -1960,36 +1581,6 @@ author = "Hadley Wickham [aut, cre], Posit Software, PBC [cph, fnd] (ROR: <https
 maintainer = "Hadley Wickham <hadley@posit.co>"
 repository = "CRAN"
 
-[renv.packages.foreign]
-package = "foreign"
-version = "0.8-90"
-source = "Repository"
-priority = "recommended"
-date = "2025-03-31"
-title = "Read Data Stored by 'Minitab', 'S', 'SAS', 'SPSS', 'Stata', 'Systat', 'Weka', 'dBase', ..."
-depends = [
-    "R (>= 4.0.0)",
-]
-imports = [
-    "methods",
-    "utils",
-    "stats",
-]
-"authors@r" = "c( person(\"R Core Team\", email = \"R-core@R-project.org\", role = c(\"aut\", \"cph\", \"cre\"), comment = c(ROR = \"02zz1nj61\")), person(\"Roger\", \"Bivand\", role = c(\"ctb\", \"cph\")), person(c(\"Vincent\", \"J.\"), \"Carey\", role = c(\"ctb\", \"cph\")), person(\"Saikat\", \"DebRoy\", role = c(\"ctb\", \"cph\")), person(\"Stephen\", \"Eglen\", role = c(\"ctb\", \"cph\")), person(\"Rajarshi\", \"Guha\", role = c(\"ctb\", \"cph\")), person(\"Swetlana\", \"Herbrandt\", role = \"ctb\"), person(\"Nicholas\", \"Lewin-Koh\", role = c(\"ctb\", \"cph\")), person(\"Mark\", \"Myatt\", role = c(\"ctb\", \"cph\")), person(\"Michael\", \"Nelson\", role = \"ctb\"), person(\"Ben\", \"Pfaff\", role = \"ctb\"), person(\"Brian\", \"Quistorff\", role = \"ctb\"), person(\"Frank\", \"Warmerdam\", role = c(\"ctb\", \"cph\")), person(\"Stephen\", \"Weigand\", role = c(\"ctb\", \"cph\")), person(\"Free Software Foundation, Inc.\", role = \"cph\"))"
-contact = "see 'MailingList'"
-copyright = "see file COPYRIGHTS"
-description = "Reading and writing data stored by some versions of 'Epi Info', 'Minitab', 'S', 'SAS', 'SPSS', 'Stata', 'Systat', 'Weka', and for reading and writing some 'dBase' files."
-byte_compile = "yes"
-biarch = "yes"
-license = "GPL (>= 2)"
-bug_reports = "https://bugs.r-project.org"
-mailing_list = "R-help@r-project.org"
-url = "https://svn.r-project.org/R-packages/trunk/foreign/"
-needs_compilation = "yes"
-author = "R Core Team [aut, cph, cre] (02zz1nj61), Roger Bivand [ctb, cph], Vincent J. Carey [ctb, cph], Saikat DebRoy [ctb, cph], Stephen Eglen [ctb, cph], Rajarshi Guha [ctb, cph], Swetlana Herbrandt [ctb], Nicholas Lewin-Koh [ctb, cph], Mark Myatt [ctb, cph], Michael Nelson [ctb], Ben Pfaff [ctb], Brian Quistorff [ctb], Frank Warmerdam [ctb, cph], Stephen Weigand [ctb, cph], Free Software Foundation, Inc. [cph]"
-maintainer = "R Core Team <R-core@R-project.org>"
-repository = "CRAN"
-
 [renv.packages.fs]
 package = "fs"
 version = "2.0.1"
@@ -2069,43 +1660,6 @@ roxygen_note = "7.3.3"
 collate = "'000.bquote.R' '000.import.R' '000.re-exports.R' '009.deprecation.R' '010.tweakable.R' '010.utils-parallelly.R' 'backend_api-01-FutureBackend-class.R' 'backend_api-03.MultiprocessFutureBackend-class.R' 'backend_api-11.ClusterFutureBackend-class.R' 'backend_api-11.MulticoreFutureBackend-class.R' 'backend_api-11.SequentialFutureBackend-class.R' 'backend_api-13.MultisessionFutureBackend-class.R' 'backend_api-ConstantFuture-class.R' 'backend_api-Future-class.R' 'backend_api-FutureRegistry.R' 'backend_api-UniprocessFuture-class.R' 'backend_api-evalFuture.R' 'core_api-cancel.R' 'core_api-future.R' 'core_api-reset.R' 'core_api-resolved.R' 'core_api-value.R' 'delayed_api-futureAssign.R' 'delayed_api-futureOf.R' 'demo_api-mandelbrot.R' 'infix_api-01-futureAssign_OP.R' 'infix_api-02-globals_OP.R' 'infix_api-03-seed_OP.R' 'infix_api-04-stdout_OP.R' 'infix_api-05-conditions_OP.R' 'infix_api-06-lazy_OP.R' 'infix_api-07-label_OP.R' 'infix_api-08-plan_OP.R' 'infix_api-09-tweak_OP.R' 'protected_api-FutureCondition-class.R' 'protected_api-FutureGlobals-class.R' 'protected_api-FutureResult-class.R' 'protected_api-futures.R' 'protected_api-globals.R' 'protected_api-journal.R' 'protected_api-resolve.R' 'protected_api-result.R' 'protected_api-signalConditions.R' 'testme.R' 'utils-basic.R' 'utils-conditions.R' 'utils-connections.R' 'utils-debug.R' 'utils-immediateCondition.R' 'utils-marshalling.R' 'utils-objectSize.R' 'utils-options.R' 'utils-prune_pkg_code.R' 'utils-registerClusterTypes.R' 'utils-rng_utils.R' 'utils-signalEarly.R' 'utils-stealth_sample.R' 'utils-sticky_globals.R' 'utils-tweakExpression.R' 'utils-uuid.R' 'utils-whichIndex.R' 'utils_api-backtrace.R' 'utils_api-capture_journals.R' 'utils_api-futureCall.R' 'utils_api-futureSessionInfo.R' 'utils_api-makeClusterFuture.R' 'utils_api-minifuture.R' 'utils_api-nbrOfWorkers.R' 'utils_api-plan.R' 'utils_api-plan-with.R' 'utils_api-sessionDetails.R' 'utils_api-tweak.R' 'zzz.R'"
 needs_compilation = "no"
 author = "Henrik Bengtsson [aut, cre, cph] (ORCID: <https://orcid.org/0000-0002-7579-5165>)"
-maintainer = "Henrik Bengtsson <henrikb@braju.com>"
-repository = "CRAN"
-
-[renv.packages."future.apply"]
-package = "future.apply"
-version = "1.20.2"
-source = "Repository"
-title = "Apply Function to Elements in Parallel using Futures"
-depends = [
-    "R (>= 3.2.0)",
-    "future (>= 1.49.0)",
-]
-imports = [
-    "globals",
-    "parallel",
-    "utils",
-]
-suggests = [
-    "datasets",
-    "stats",
-    "tools",
-    "listenv",
-    "R.rsp",
-    "markdown",
-]
-vignette_builder = "R.rsp"
-"authors@r" = "c(person(\"Henrik\", \"Bengtsson\", role = c(\"aut\", \"cre\", \"cph\"), email = \"henrikb@braju.com\", comment = c(ORCID = \"0000-0002-7579-5165\")), person(\"R Core Team\", role = c(\"cph\", \"ctb\")))"
-description = "Implementations of apply(), by(), eapply(), lapply(), Map(), .mapply(), mapply(), replicate(), sapply(), tapply(), and vapply() that can be resolved using any future-supported backend, e.g. parallel on the local machine or distributed on a compute cluster. These future_*apply() functions come with the same pros and cons as the corresponding base-R *apply() functions but with the additional feature of being able to be processed via the future framework <doi:10.32614/RJ-2021-048>."
-license = "GPL (>= 2)"
-lazy_load = "TRUE"
-url = "https://future.apply.futureverse.org, https://github.com/futureverse/future.apply"
-bug_reports = "https://github.com/futureverse/future.apply/issues"
-language = "en-US"
-encoding = "UTF-8"
-roxygen_note = "7.3.3"
-needs_compilation = "no"
-author = "Henrik Bengtsson [aut, cre, cph] (ORCID: <https://orcid.org/0000-0002-7579-5165>), R Core Team [cph, ctb]"
 maintainer = "Henrik Bengtsson <henrikb@braju.com>"
 repository = "CRAN"
 
@@ -2261,30 +1815,6 @@ collate = "'ggproto.R' 'ggplot-global.R' 'aaa-.R' 'aes-colour-fill-alpha.R' 'aes
 needs_compilation = "no"
 author = "Hadley Wickham [aut] (ORCID: <https://orcid.org/0000-0003-4757-117X>), Winston Chang [aut] (ORCID: <https://orcid.org/0000-0002-1576-2126>), Lionel Henry [aut], Thomas Lin Pedersen [aut, cre] (ORCID: <https://orcid.org/0000-0002-5147-4711>), Kohske Takahashi [aut], Claus Wilke [aut] (ORCID: <https://orcid.org/0000-0002-7470-9261>), Kara Woo [aut] (ORCID: <https://orcid.org/0000-0002-5125-4188>), Hiroaki Yutani [aut] (ORCID: <https://orcid.org/0000-0002-3385-7233>), Dewey Dunnington [aut] (ORCID: <https://orcid.org/0000-0002-9415-4582>), Teun van den Brand [aut] (ORCID: <https://orcid.org/0000-0002-9335-7468>), Posit, PBC [cph, fnd] (ROR: <https://ror.org/03wc8by49>)"
 maintainer = "Thomas Lin Pedersen <thomas.pedersen@posit.co>"
-repository = "CRAN"
-
-[renv.packages.gifski]
-package = "gifski"
-version = "1.32.0-2"
-source = "Repository"
-type = "Package"
-title = "Highest Quality GIF Encoder"
-"authors@r" = "c( person(\"Jeroen\", \"Ooms\", ,\"jeroenooms@gmail.com\", role = c(\"aut\", \"cre\"), comment = c(ORCID = \"0000-0002-4035-0289\")), person(\"Kornel Lesiński\", role = \"aut\", comment = \"Gifski Rust library\"), person(\"Authors of the dependency Rust crates\", role = \"aut\",  comment = \"see AUTHORS file\"))"
-description = "Multi-threaded GIF encoder written in Rust: <https://gif.ski/>.  Converts images to GIF animations using pngquant's efficient cross-frame  palettes and temporal dithering with thousands of colors per frame."
-license = "MIT + file LICENSE"
-url = "https://r-rust.r-universe.dev/gifski"
-bug_reports = "https://github.com/r-rust/gifski/issues"
-system_requirements = "Cargo (Rust's package manager), rustc"
-encoding = "UTF-8"
-roxygen_note = "7.1.1"
-suggests = [
-    "ggplot2",
-    "gapminder",
-]
-language = "en-US"
-needs_compilation = "yes"
-author = "Jeroen Ooms [aut, cre] (<https://orcid.org/0000-0002-4035-0289>), Kornel Lesiński [aut] (Gifski Rust library), Authors of the dependency Rust crates [aut] (see AUTHORS file)"
-maintainer = "Jeroen Ooms <jeroenooms@gmail.com>"
 repository = "CRAN"
 
 [renv.packages.globals]
@@ -3117,45 +2647,6 @@ author = "Winston Chang [aut] (ORCID: <https://orcid.org/0000-0002-1576-2126>), 
 maintainer = "Charlie Gao <charlie.gao@posit.co>"
 repository = "CRAN"
 
-[renv.packages.lattice]
-package = "lattice"
-version = "0.22-7"
-source = "Repository"
-date = "2025-03-31"
-priority = "recommended"
-title = "Trellis Graphics for R"
-"authors@r" = "c(person(\"Deepayan\", \"Sarkar\", role = c(\"aut\", \"cre\"), email = \"deepayan.sarkar@r-project.org\", comment = c(ORCID = \"0000-0003-4107-1553\")), person(\"Felix\", \"Andrews\", role = \"ctb\"), person(\"Kevin\", \"Wright\", role = \"ctb\", comment = \"documentation\"), person(\"Neil\", \"Klepeis\", role = \"ctb\"), person(\"Johan\", \"Larsson\", role = \"ctb\", comment = \"miscellaneous improvements\"), person(\"Zhijian (Jason)\", \"Wen\", role = \"cph\", comment = \"filled contour code\"), person(\"Paul\", \"Murrell\", role = \"ctb\", email = \"paul@stat.auckland.ac.nz\"), person(\"Stefan\", \"Eng\", role = \"ctb\", comment = \"violin plot improvements\"), person(\"Achim\", \"Zeileis\", role = \"ctb\", comment = \"modern colors\"), person(\"Alexandre\", \"Courtiol\", role = \"ctb\", comment = \"generics for larrows, lpolygon, lrect and lsegments\") )"
-description = "A powerful and elegant high-level data visualization system inspired by Trellis graphics, with an emphasis on multivariate data. Lattice is sufficient for typical graphics needs, and is also flexible enough to handle most nonstandard requirements. See ?Lattice for an introduction."
-depends = [
-    "R (>= 4.0.0)",
-]
-suggests = [
-    "KernSmooth",
-    "MASS",
-    "latticeExtra",
-    "colorspace",
-]
-imports = [
-    "grid",
-    "grDevices",
-    "graphics",
-    "stats",
-    "utils",
-]
-enhances = [
-    "chron",
-    "zoo",
-]
-lazy_load = "yes"
-lazy_data = "yes"
-license = "GPL (>= 2)"
-url = "https://lattice.r-forge.r-project.org/"
-bug_reports = "https://github.com/deepayan/lattice/issues"
-needs_compilation = "yes"
-author = "Deepayan Sarkar [aut, cre] (<https://orcid.org/0000-0003-4107-1553>), Felix Andrews [ctb], Kevin Wright [ctb] (documentation), Neil Klepeis [ctb], Johan Larsson [ctb] (miscellaneous improvements), Zhijian (Jason) Wen [cph] (filled contour code), Paul Murrell [ctb], Stefan Eng [ctb] (violin plot improvements), Achim Zeileis [ctb] (modern colors), Alexandre Courtiol [ctb] (generics for larrows, lpolygon, lrect and lsegments)"
-maintainer = "Deepayan Sarkar <deepayan.sarkar@r-project.org>"
-repository = "CRAN"
-
 [renv.packages.lazyeval]
 package = "lazyeval"
 version = "0.2.2"
@@ -3326,36 +2817,6 @@ author = "Stefan Milton Bache [aut, cph] (Original author and creator of magritt
 maintainer = "Lionel Henry <lionel@posit.co>"
 repository = "CRAN"
 
-[renv.packages.maps]
-package = "maps"
-version = "3.4.3"
-source = "Repository"
-title = "Draw Geographical Maps"
-date = "2025-05-15"
-description = "Display of maps.  Projection code and larger maps are in separate packages ('mapproj' and 'mapdata')."
-depends = [
-    "R (>= 3.5.0)",
-]
-imports = [
-    "graphics",
-    "utils",
-]
-lazy_data = "yes"
-suggests = [
-    "mapproj (>= 1.2-0)",
-    "mapdata (>= 2.3.0)",
-    "sf",
-    "rnaturalearth",
-]
-license = "GPL-2"
-url = "https://github.com/adeckmyn/maps"
-bug_reports = "https://github.com/adeckmyn/maps/issues"
-"authors@r" = "c(person(given  = c(\"Richard\", \"A.\"), family = \"Becker\", role   = \"aut\", comment= \"Original S code\"), person(given  = c(\"Allan\", \"R.\"), family = \"Wilks\", role   = \"aut\", comment= \"Original S code\"), person(given  = \"Ray\", family = \"Brownrigg\", role   = c(\"trl\", \"aut\"), comment= \"R version\"), person(given  = c(\"Thomas\", \"P.\"), family = \"Minka\", role   = \"aut\", comment= \"Enhancements\"), person(given  = \"Alex\", family = \"Deckmyn\", role   = c(\"aut\", \"cre\"), comment= c(ORCID=\"0009-0002-2010-8310\"), email  = \"alex.deckmyn@meteo.be\"))"
-needs_compilation = "yes"
-repository = "CRAN"
-author = "Richard A. Becker [aut] (Original S code), Allan R. Wilks [aut] (Original S code), Ray Brownrigg [trl, aut] (R version), Thomas P. Minka [aut] (Enhancements), Alex Deckmyn [aut, cre] (ORCID: <https://orcid.org/0009-0002-2010-8310>)"
-maintainer = "Alex Deckmyn <alex.deckmyn@meteo.be>"
-
 [renv.packages.memoise]
 package = "memoise"
 version = "2.0.1"
@@ -3384,39 +2845,6 @@ roxygen_note = "7.1.2"
 needs_compilation = "no"
 author = "Hadley Wickham [aut], Jim Hester [aut], Winston Chang [aut, cre], Kirill Müller [aut], Daniel Cook [aut], Mark Edmondson [ctb]"
 maintainer = "Winston Chang <winston@rstudio.com>"
-repository = "CRAN"
-
-[renv.packages.mgcv]
-package = "mgcv"
-version = "1.9-3"
-source = "Repository"
-"authors@r" = "person(given = \"Simon\", family = \"Wood\", role = c(\"aut\", \"cre\"), email = \"simon.wood@r-project.org\")"
-title = "Mixed GAM Computation Vehicle with Automatic Smoothness Estimation"
-description = "Generalized additive (mixed) models, some of their extensions and  other generalized ridge regression with multiple smoothing  parameter estimation by (Restricted) Marginal Likelihood,  Generalized Cross Validation and similar, or using iterated  nested Laplace approximation for fully Bayesian inference. See  Wood (2017) <doi:10.1201/9781315370279> for an overview.  Includes a gam() function, a wide variety of smoothers, 'JAGS'  support and distributions beyond the exponential family."
-priority = "recommended"
-depends = [
-    "R (>= 3.6.0)",
-    "nlme (>= 3.1-64)",
-]
-imports = [
-    "methods",
-    "stats",
-    "graphics",
-    "Matrix",
-    "splines",
-    "utils",
-]
-suggests = [
-    "parallel",
-    "survival",
-    "MASS",
-]
-lazy_load = "yes"
-byte_compile = "yes"
-license = "GPL (>= 2)"
-needs_compilation = "yes"
-author = "Simon Wood [aut, cre]"
-maintainer = "Simon Wood <simon.wood@r-project.org>"
 repository = "CRAN"
 
 [renv.packages.mime]
@@ -3477,107 +2905,6 @@ roxygen_note = "7.2.3"
 needs_compilation = "no"
 author = "Hadley Wickham [aut, cre], Posit Software, PBC [cph, fnd]"
 maintainer = "Hadley Wickham <hadley@posit.co>"
-repository = "CRAN"
-
-[renv.packages.ncmeta]
-package = "ncmeta"
-version = "0.4.0.9002"
-source = "GitHub"
-title = "Straightforward 'NetCDF' Metadata"
-"authors@r" = "c(person(\"Michael\", \"Sumner\", email = \"mdsumner@gmail.com\", role = c(\"aut\", \"cre\")),  person(\"Tomas\", \"Remenyi\", role = \"ctb\"),  person(\"Ben\", \"Raymond\", role = \"ctb\"),  person(\"David\", \"Blodgett\", role = \"ctb\"),  person(\"Milton\", \"Woods\", role = \"ctb\"),  person(\"Patrick\", \"Van Laake\", role = \"ctb\"))"
-description = "Extract metadata from 'NetCDF' data sources, these can be files, file handles or servers. This package leverages and extends the lower level functions of the 'RNetCDF' package  providing a consistent set of functions that all return data frames. We introduce named concepts  of 'grid', 'axis' and 'source' which are all meaningful entities without formal definition in the  'NetCDF' library <https://www.unidata.ucar.edu/software/netcdf/>. 'RNetCDF' matches the library  itself with only the named concepts of 'variables', 'dimensions' and 'attributes'."
-depends = [
-    "R (>= 3.3.0)",
-]
-license = "GPL-3"
-encoding = "UTF-8"
-roxygen_note = "7.3.2"
-imports = [
-    "dplyr",
-    "rlang",
-    "RNetCDF",
-    "tibble",
-    "stats",
-    "tidyr",
-    "CFtime",
-    "rnz",
-]
-remotes = "doi-usgs/rnz"
-suggests = [
-    "testthat",
-    "covr",
-]
-roxygen = "list(markdown = TRUE)"
-url = "https://github.com/hypertidy/ncmeta, https://hypertidy.github.io/ncmeta/"
-bug_reports = "https://github.com/hypertidy/ncmeta/issues"
-byte_compile = "TRUE"
-remote_type = "github"
-remote_host = "api.github.com"
-remote_repo = "ncmeta"
-remote_username = "dblodgett-usgs"
-remote_ref = "HEAD"
-remote_sha = "7f9d4370a587302fbaf246e3fcb35a3ba0d62018"
-needs_compilation = "no"
-author = "Michael Sumner [aut, cre], Tomas Remenyi [ctb], Ben Raymond [ctb], David Blodgett [ctb], Milton Woods [ctb], Patrick Van Laake [ctb]"
-maintainer = "Michael Sumner <mdsumner@gmail.com>"
-
-[renv.packages.nlme]
-package = "nlme"
-version = "3.1-168"
-source = "Repository"
-date = "2025-03-31"
-priority = "recommended"
-title = "Linear and Nonlinear Mixed Effects Models"
-"authors@r" = "c(person(\"José\", \"Pinheiro\", role = \"aut\", comment = \"S version\"), person(\"Douglas\", \"Bates\", role = \"aut\", comment = \"up to 2007\"), person(\"Saikat\", \"DebRoy\", role = \"ctb\", comment = \"up to 2002\"), person(\"Deepayan\", \"Sarkar\", role = \"ctb\", comment = \"up to 2005\"), person(\"EISPACK authors\", role = \"ctb\", comment = \"src/rs.f\"), person(\"Siem\", \"Heisterkamp\", role = \"ctb\", comment = \"Author fixed sigma\"), person(\"Bert\", \"Van Willigen\",role = \"ctb\", comment = \"Programmer fixed sigma\"), person(\"Johannes\", \"Ranke\", role = \"ctb\", comment = \"varConstProp()\"), person(\"R Core Team\", email = \"R-core@R-project.org\", role = c(\"aut\", \"cre\"), comment = c(ROR = \"02zz1nj61\")))"
-contact = "see 'MailingList'"
-description = "Fit and compare Gaussian linear and nonlinear mixed-effects models."
-depends = [
-    "R (>= 3.6.0)",
-]
-imports = [
-    "graphics",
-    "stats",
-    "utils",
-    "lattice",
-]
-suggests = [
-    "MASS",
-    "SASmixed",
-]
-lazy_data = "yes"
-encoding = "UTF-8"
-license = "GPL (>= 2)"
-bug_reports = "https://bugs.r-project.org"
-mailing_list = "R-help@r-project.org"
-url = "https://svn.r-project.org/R-packages/trunk/nlme/"
-needs_compilation = "yes"
-author = "José Pinheiro [aut] (S version), Douglas Bates [aut] (up to 2007), Saikat DebRoy [ctb] (up to 2002), Deepayan Sarkar [ctb] (up to 2005), EISPACK authors [ctb] (src/rs.f), Siem Heisterkamp [ctb] (Author fixed sigma), Bert Van Willigen [ctb] (Programmer fixed sigma), Johannes Ranke [ctb] (varConstProp()), R Core Team [aut, cre] (02zz1nj61)"
-maintainer = "R Core Team <R-core@R-project.org>"
-repository = "CRAN"
-
-[renv.packages.nnet]
-package = "nnet"
-version = "7.3-20"
-source = "Repository"
-priority = "recommended"
-date = "2025-01-01"
-depends = [
-    "R (>= 3.0.0)",
-    "stats",
-    "utils",
-]
-suggests = [
-    "MASS",
-]
-"authors@r" = "c(person(\"Brian\", \"Ripley\", role = c(\"aut\", \"cre\", \"cph\"), email = \"Brian.Ripley@R-project.org\"), person(\"William\", \"Venables\", role = \"cph\"))"
-description = "Software for feed-forward neural networks with a single hidden layer, and for multinomial log-linear models."
-title = "Feed-Forward Neural Networks and Multinomial Log-Linear Models"
-byte_compile = "yes"
-license = "GPL-2 | GPL-3"
-url = "http://www.stats.ox.ac.uk/pub/MASS4/"
-needs_compilation = "yes"
-author = "Brian Ripley [aut, cre, cph], William Venables [cph]"
-maintainer = "Brian Ripley <Brian.Ripley@R-project.org>"
 repository = "CRAN"
 
 [renv.packages.openssl]
@@ -3758,43 +3085,6 @@ url = "https://github.com/r-lib/pkgconfig#readme"
 bug_reports = "https://github.com/r-lib/pkgconfig/issues"
 encoding = "UTF-8"
 needs_compilation = "no"
-repository = "CRAN"
-
-[renv.packages.plyr]
-package = "plyr"
-version = "1.8.9"
-source = "Repository"
-title = "Tools for Splitting, Applying and Combining Data"
-"authors@r" = "person(\"Hadley\", \"Wickham\", , \"hadley@rstudio.com\", role = c(\"aut\", \"cre\"))"
-description = "A set of tools that solves a common set of problems: you need to break a big problem down into manageable pieces, operate on each piece and then put all the pieces back together.  For example, you might want to fit a model to each spatial location or time point in your study, summarise data by panels or collapse high-dimensional arrays to simpler summary statistics. The development of 'plyr' has been generously supported by 'Becton Dickinson'."
-license = "MIT + file LICENSE"
-url = "http://had.co.nz/plyr, https://github.com/hadley/plyr"
-bug_reports = "https://github.com/hadley/plyr/issues"
-depends = [
-    "R (>= 3.1.0)",
-]
-imports = [
-    "Rcpp (>= 0.11.0)",
-]
-suggests = [
-    "abind",
-    "covr",
-    "doParallel",
-    "foreach",
-    "iterators",
-    "itertools",
-    "tcltk",
-    "testthat",
-]
-linking_to = [
-    "Rcpp",
-]
-encoding = "UTF-8"
-lazy_data = "true"
-roxygen_note = "7.2.3"
-needs_compilation = "yes"
-author = "Hadley Wickham [aut, cre]"
-maintainer = "Hadley Wickham <hadley@rstudio.com>"
 repository = "CRAN"
 
 [renv.packages.prettyunits]
@@ -4268,53 +3558,6 @@ author = "Gábor Csárdi [aut, cre], Matthew Lincoln [ctb]"
 maintainer = "Gábor Csárdi <csardi.gabor@gmail.com>"
 repository = "CRAN"
 
-[renv.packages.remotes]
-package = "remotes"
-version = "2.5.0"
-source = "Repository"
-title = "R Package Installation from Remote Repositories, Including 'GitHub'"
-"authors@r" = "c( person(\"Gábor\", \"Csárdi\", , \"csardi.gabor@gmail.com\", role = c(\"aut\", \"cre\")), person(\"Jim\", \"Hester\", role = \"aut\"), person(\"Hadley\", \"Wickham\", role = \"aut\"), person(\"Winston\", \"Chang\", role = \"aut\"), person(\"Martin\", \"Morgan\", role = \"aut\"), person(\"Dan\", \"Tenenbaum\", role = \"aut\"), person(\"Posit Software, PBC\", role = c(\"cph\", \"fnd\")), person(\"Ascent Digital Services\", role = \"cph\") )"
-description = "Download and install R packages stored in 'GitHub', 'GitLab', 'Bitbucket', 'Bioconductor', or plain 'subversion' or 'git' repositories.  This package provides the 'install_*' functions in 'devtools'. Indeed most of the code was copied over from 'devtools'."
-license = "MIT + file LICENSE"
-url = "https://remotes.r-lib.org, https://github.com/r-lib/remotes#readme"
-bug_reports = "https://github.com/r-lib/remotes/issues"
-depends = [
-    "R (>= 3.0.0)",
-]
-imports = [
-    "methods",
-    "stats",
-    "tools",
-    "utils",
-]
-suggests = [
-    "brew",
-    "callr",
-    "codetools",
-    "covr",
-    "curl",
-    "git2r (>= 0.23.0)",
-    "knitr",
-    "mockery",
-    "pingr",
-    "pkgbuild (>= 1.0.1)",
-    "rmarkdown",
-    "rprojroot",
-    "testthat (>= 3.0.0)",
-    "webfakes",
-    "withr",
-]
-vignette_builder = "knitr"
-"config/needs/website" = "tidyverse/tidytemplate"
-"config/testthat/edition" = "3"
-encoding = "UTF-8"
-roxygen_note = "7.2.3"
-system_requirements = "Subversion for install_svn, git for install_git"
-needs_compilation = "no"
-author = "Gábor Csárdi [aut, cre], Jim Hester [aut], Hadley Wickham [aut], Winston Chang [aut], Martin Morgan [aut], Dan Tenenbaum [aut], Posit Software, PBC [cph, fnd], Ascent Digital Services [cph]"
-maintainer = "Gábor Csárdi <csardi.gabor@gmail.com>"
-repository = "CRAN"
-
 [renv.packages.renv]
 package = "renv"
 version = "1.2.2"
@@ -4422,50 +3665,6 @@ author = "Jennifer Bryan [aut, cre] (<https://orcid.org/0000-0002-6983-2759>), J
 maintainer = "Jennifer Bryan <jenny@posit.co>"
 repository = "CRAN"
 
-[renv.packages.rinat]
-package = "rinat"
-version = "0.1.10.9000"
-source = "GitHub"
-type = "Package"
-title = "Access 'iNaturalist' Data Through APIs"
-date = "2025-08-31"
-"authors@r" = "c( person(\"Vijay\", \"Barve\", role = \"aut\", email = \"vijay.barve@gmail.com\", comment = c(ORCID = \"0000-0002-4852-2567\")), person(\"Edmund\", \"Hart\", role = \"aut\", email = \"edmund.m.hart@gmail.com\"), person(\"Stéphane\", \"Guillou\", role = \"cre\", email = \"stephane.guillou@member.fsf.org\", comment = c(ORCID = \"0000-0001-8992-0951\")) )"
-description = "A programmatic interface to the API provided by the 'iNaturalist' website <https://www.inaturalist.org/> to download species occurrence data submitted by citizen scientists."
-license = "MIT + file LICENSE"
-imports = [
-    "httr",
-    "curl",
-    "plyr",
-    "jsonlite",
-    "ggplot2",
-    "maps",
-    "sp",
-]
-roxygen_note = "7.3.2"
-url = "https://docs.ropensci.org/rinat/ (website) https://github.com/ropensci/rinat (devel)"
-suggests = [
-    "knitr",
-    "rmarkdown",
-    "testthat",
-    "sf",
-    "dplyr",
-    "lubridate",
-    "ggforce",
-    "stringr",
-    "purrr",
-]
-vignette_builder = "knitr"
-encoding = "UTF-8"
-remote_type = "github"
-remote_host = "api.github.com"
-remote_repo = "rinat"
-remote_username = "ropensci"
-remote_ref = "HEAD"
-remote_sha = "44c9f1c892765e40948b2a286a53f302328ccf03"
-needs_compilation = "no"
-author = "Vijay Barve [aut] (ORCID: <https://orcid.org/0000-0002-4852-2567>), Edmund Hart [aut], Stéphane Guillou [cre] (ORCID: <https://orcid.org/0000-0001-8992-0951>)"
-maintainer = "Stéphane Guillou <stephane.guillou@member.fsf.org>"
-
 [renv.packages.rlang]
 package = "rlang"
 version = "1.2.0"
@@ -4572,75 +3771,6 @@ needs_compilation = "no"
 author = "JJ Allaire [aut], Yihui Xie [aut, cre] (ORCID: <https://orcid.org/0000-0003-0645-5666>), Christophe Dervieux [aut] (ORCID: <https://orcid.org/0000-0003-4474-2498>), Jonathan McPherson [aut], Javier Luraschi [aut], Kevin Ushey [aut], Aron Atkins [aut], Hadley Wickham [aut], Joe Cheng [aut], Winston Chang [aut], Richard Iannone [aut] (ORCID: <https://orcid.org/0000-0003-3925-190X>), Andrew Dunning [ctb] (ORCID: <https://orcid.org/0000-0003-0464-5036>), Atsushi Yasumoto [ctb, cph] (ORCID: <https://orcid.org/0000-0002-8335-495X>, cph: Number sections Lua filter), Barret Schloerke [ctb], Carson Sievert [ctb] (ORCID: <https://orcid.org/0000-0002-4958-2844>), Devon Ryan [ctb] (ORCID: <https://orcid.org/0000-0002-8549-0971>), Frederik Aust [ctb] (ORCID: <https://orcid.org/0000-0003-4900-788X>), Jeff Allen [ctb], JooYoung Seo [ctb] (ORCID: <https://orcid.org/0000-0002-4064-6012>), Malcolm Barrett [ctb], Rob Hyndman [ctb], Romain Lesur [ctb], Roy Storey [ctb], Ruben Arslan [ctb], Sergio Oller [ctb], Posit Software, PBC [cph, fnd], jQuery UI contributors [ctb, cph] (jQuery UI library; authors listed in inst/rmd/h/jqueryui/AUTHORS.txt), Mark Otto [ctb] (Bootstrap library), Jacob Thornton [ctb] (Bootstrap library), Bootstrap contributors [ctb] (Bootstrap library), Twitter, Inc [cph] (Bootstrap library), Alexander Farkas [ctb, cph] (html5shiv library), Scott Jehl [ctb, cph] (Respond.js library), Ivan Sagalaev [ctb, cph] (highlight.js library), Greg Franko [ctb, cph] (tocify library), John MacFarlane [ctb, cph] (Pandoc templates), Google, Inc. [ctb, cph] (ioslides library), Dave Raggett [ctb] (slidy library), W3C [cph] (slidy library), Dave Gandy [ctb, cph] (Font-Awesome), Ben Sperry [ctb] (Ionicons), Drifty [cph] (Ionicons), Aidan Lister [ctb, cph] (jQuery StickyTabs), Benct Philip Jonsson [ctb, cph] (pagebreak Lua filter), Albert Krewinkel [ctb, cph] (pagebreak Lua filter)"
 maintainer = "Yihui Xie <xie@yihui.name>"
 repository = "CRAN"
-
-[renv.packages.rnz]
-package = "rnz"
-version = "0.3.0"
-source = "GitHub"
-type = "Package"
-title = "R NetCDF ZARR"
-"authors@r" = "person(given = \"David\",  family = \"Blodgett\",  role = c(\"aut\", \"cre\"),  email = \"dblodgett@usgs.gov\", comment = c(ORCID = \"0000-0001-9489-1710\"))"
-description = "Implements a RNetCDF-like set of functions for NetCDF and zarr data based on the pizzarr package."
-imports = [
-    "tools",
-    "utils",
-    "RNetCDF",
-]
-suggests = [
-    "pizzarr (>= 0.1.3)",
-    "knitr",
-    "rmarkdown",
-    "testthat (>= 3.0.0)",
-]
-remotes = "zarr-developers/pizzarr"
-license = "CC0"
-"config/testthat/parallel" = "true"
-"config/testthat/edition" = "3"
-vignette_builder = "knitr"
-encoding = "UTF-8"
-language = "en-US"
-roxygen_note = "7.3.3"
-url = "https://github.com/DOI-USGS/rnz"
-remote_type = "github"
-remote_host = "api.github.com"
-remote_repo = "rnz"
-remote_username = "doi-usgs"
-remote_ref = "HEAD"
-remote_sha = "f9ae4ca7ecd0d79fb1e4d5f994bf69db11025aa2"
-needs_compilation = "no"
-author = "David Blodgett [aut, cre] (ORCID: <https://orcid.org/0000-0001-9489-1710>)"
-maintainer = "David Blodgett <dblodgett@usgs.gov>"
-depends = [
-    "R (>= 4.1.0)",
-]
-
-[renv.packages.rpart]
-package = "rpart"
-version = "4.1.24"
-source = "Repository"
-priority = "recommended"
-date = "2025-01-06"
-"authors@r" = "c(person(\"Terry\", \"Therneau\", role = \"aut\", email = \"therneau@mayo.edu\"), person(\"Beth\", \"Atkinson\", role = c(\"aut\", \"cre\"), email = \"atkinson@mayo.edu\"), person(\"Brian\", \"Ripley\", role = \"trl\", email = \"ripley@stats.ox.ac.uk\", comment = \"producer of the initial R port, maintainer 1999-2017\"))"
-description = "Recursive partitioning for classification,  regression and survival trees.  An implementation of most of the  functionality of the 1984 book by Breiman, Friedman, Olshen and Stone."
-title = "Recursive Partitioning and Regression Trees"
-depends = [
-    "R (>= 2.15.0)",
-    "graphics",
-    "stats",
-    "grDevices",
-]
-suggests = [
-    "survival",
-]
-license = "GPL-2 | GPL-3"
-lazy_data = "yes"
-byte_compile = "yes"
-needs_compilation = "yes"
-author = "Terry Therneau [aut], Beth Atkinson [aut, cre], Brian Ripley [trl] (producer of the initial R port, maintainer 1999-2017)"
-maintainer = "Beth Atkinson <atkinson@mayo.edu>"
-repository = "CRAN"
-url = "https://github.com/bethatkinson/rpart, https://cran.r-project.org/package=rpart"
-bug_reports = "https://github.com/bethatkinson/rpart/issues"
 
 [renv.packages.rstudioapi]
 package = "rstudioapi"
@@ -5102,74 +4232,6 @@ needs_compilation = "yes"
 author = "Kevin Ushey [aut, cre]"
 repository = "CRAN"
 
-[renv.packages.sp]
-package = "sp"
-version = "2.2-1"
-source = "Repository"
-title = "Classes and Methods for Spatial Data"
-"authors@r" = "c(person(\"Edzer\", \"Pebesma\", role = c(\"aut\", \"cre\"), email = \"edzer.pebesma@uni-muenster.de\"), person(\"Roger\", \"Bivand\", role = \"aut\", email = \"Roger.Bivand@nhh.no\"), person(\"Barry\", \"Rowlingson\", role = \"ctb\"), person(\"Virgilio\", \"Gomez-Rubio\", role = \"ctb\"), person(\"Robert\", \"Hijmans\", role = \"ctb\"), person(\"Michael\", \"Sumner\", role = \"ctb\"), person(\"Don\", \"MacQueen\", role = \"ctb\"), person(\"Jim\", \"Lemon\", role = \"ctb\"), person(\"Finn\", \"Lindgren\", role = \"ctb\"), person(\"Josh\", \"O'Brien\", role = \"ctb\"), person(\"Joseph\", \"O'Rourke\", role = \"ctb\"), person(\"Patrick\", \"Hausmann\", role = \"ctb\"), person(\"Sebastian\", \"Meyer\", role = \"ctb\"))"
-depends = [
-    "R (>= 3.5.0)",
-    "methods",
-]
-imports = [
-    "utils",
-    "stats",
-    "graphics",
-    "grDevices",
-    "lattice",
-    "grid",
-]
-suggests = [
-    "RColorBrewer",
-    "gstat",
-    "deldir",
-    "knitr",
-    "maps",
-    "mapview",
-    "rmarkdown",
-    "sf",
-    "terra",
-    "raster",
-]
-description = "Classes and methods for spatial data; the classes document where the spatial location information resides, for 2D or 3D data. Utility functions are provided, e.g. for plotting data as maps, spatial selection, as well as methods for retrieving coordinates, for subsetting, print, summary, etc. From this version, 'rgdal', 'maptools', and 'rgeos' are no longer used at all, see <https://r-spatial.org/r/2023/05/15/evolution4.html> for details."
-license = "GPL (>= 2)"
-url = "https://github.com/edzer/sp/ https://edzer.github.io/sp/"
-bug_reports = "https://github.com/edzer/sp/issues"
-collate = "bpy.colors.R AAA.R Class-CRS.R CRS-methods.R Class-Spatial.R Spatial-methods.R projected.R Class-SpatialPoints.R SpatialPoints-methods.R Class-SpatialPointsDataFrame.R SpatialPointsDataFrame-methods.R Class-SpatialMultiPoints.R SpatialMultiPoints-methods.R Class-SpatialMultiPointsDataFrame.R SpatialMultiPointsDataFrame-methods.R Class-GridTopology.R Class-SpatialGrid.R Class-SpatialGridDataFrame.R Class-SpatialLines.R SpatialLines-methods.R Class-SpatialLinesDataFrame.R SpatialLinesDataFrame-methods.R Class-SpatialPolygons.R Class-SpatialPolygonsDataFrame.R SpatialPolygons-methods.R SpatialPolygonsDataFrame-methods.R GridTopology-methods.R SpatialGrid-methods.R SpatialGridDataFrame-methods.R SpatialPolygons-internals.R point.in.polygon.R SpatialPolygons-displayMethods.R zerodist.R image.R stack.R bubble.R mapasp.R select.spatial.R gridded.R asciigrid.R spplot.R over.R spsample.R recenter.R dms.R gridlines.R spdists.R rbind.R flipSGDF.R chfids.R loadmeuse.R compassRose.R surfaceArea.R spOptions.R subset.R disaggregate.R sp_spat1.R merge.R aggregate.R elide.R sp2Mondrian.R"
-vignette_builder = "knitr"
-needs_compilation = "yes"
-author = "Edzer Pebesma [aut, cre], Roger Bivand [aut], Barry Rowlingson [ctb], Virgilio Gomez-Rubio [ctb], Robert Hijmans [ctb], Michael Sumner [ctb], Don MacQueen [ctb], Jim Lemon [ctb], Finn Lindgren [ctb], Josh O'Brien [ctb], Joseph O'Rourke [ctb], Patrick Hausmann [ctb], Sebastian Meyer [ctb]"
-maintainer = "Edzer Pebesma <edzer.pebesma@uni-muenster.de>"
-repository = "CRAN"
-
-[renv.packages.spatial]
-package = "spatial"
-version = "7.3-18"
-source = "Repository"
-priority = "recommended"
-date = "2025-01-01"
-depends = [
-    "R (>= 3.0.0)",
-    "graphics",
-    "stats",
-    "utils",
-]
-suggests = [
-    "MASS",
-]
-"authors@r" = "c(person(\"Brian\", \"Ripley\", role = c(\"aut\", \"cre\", \"cph\"), email = \"Brian.Ripley@R-project.org\"), person(\"Roger\", \"Bivand\", role = \"ctb\"), person(\"William\", \"Venables\", role = \"cph\"))"
-description = "Functions for kriging and point pattern analysis."
-title = "Functions for Kriging and Point Pattern Analysis"
-lazy_load = "yes"
-byte_compile = "yes"
-license = "GPL-2 | GPL-3"
-url = "http://www.stats.ox.ac.uk/pub/MASS4/"
-needs_compilation = "yes"
-author = "Brian Ripley [aut, cre, cph], Roger Bivand [ctb], William Venables [cph]"
-maintainer = "Brian Ripley <Brian.Ripley@R-project.org>"
-repository = "CRAN"
-
 [renv.packages.stringi]
 package = "stringi"
 version = "1.8.7"
@@ -5245,36 +4307,6 @@ author = "Hadley Wickham [aut, cre, cph], Posit Software, PBC [cph, fnd]"
 maintainer = "Hadley Wickham <hadley@posit.co>"
 repository = "CRAN"
 
-[renv.packages.survival]
-package = "survival"
-version = "3.8-3"
-source = "Repository"
-title = "Survival Analysis"
-priority = "recommended"
-date = "2024-12-17"
-depends = [
-    "R (>= 3.5.0)",
-]
-imports = [
-    "graphics",
-    "Matrix",
-    "methods",
-    "splines",
-    "stats",
-    "utils",
-]
-lazy_data = "Yes"
-lazy_data_compression = "xz"
-byte_compile = "Yes"
-"authors@r" = "c(person(c(\"Terry\", \"M\"), \"Therneau\", email=\"therneau.terry@mayo.edu\", role=c(\"aut\", \"cre\")), person(\"Thomas\", \"Lumley\", role=c(\"ctb\", \"trl\"), comment=\"original S->R port and R maintainer until 2009\"), person(\"Atkinson\", \"Elizabeth\", role=\"ctb\"), person(\"Crowson\", \"Cynthia\", role=\"ctb\"))"
-description = "Contains the core survival analysis routines, including definition of Surv objects,  Kaplan-Meier and Aalen-Johansen (multi-state) curves, Cox models, and parametric accelerated failure time models."
-license = "LGPL (>= 2)"
-url = "https://github.com/therneau/survival"
-needs_compilation = "yes"
-author = "Terry M Therneau [aut, cre], Thomas Lumley [ctb, trl] (original S->R port and R maintainer until 2009), Atkinson Elizabeth [ctb], Crowson Cynthia [ctb]"
-maintainer = "Terry M Therneau <therneau.terry@mayo.edu>"
-repository = "CRAN"
-
 [renv.packages.sys]
 package = "sys"
 version = "3.4.3"
@@ -5345,49 +4377,6 @@ system_requirements = "fontconfig, freetype2"
 needs_compilation = "yes"
 author = "Thomas Lin Pedersen [aut, cre] (ORCID: <https://orcid.org/0000-0002-5147-4711>), Jeroen Ooms [aut] (ORCID: <https://orcid.org/0000-0002-4035-0289>), Devon Govett [aut] (Author of font-manager), Posit Software, PBC [cph, fnd] (ROR: <https://ror.org/03wc8by49>)"
 maintainer = "Thomas Lin Pedersen <thomas.pedersen@posit.co>"
-repository = "CRAN"
-
-[renv.packages.terra]
-package = "terra"
-version = "1.9-25"
-source = "Repository"
-type = "Package"
-title = "Spatial Data Analysis"
-date = "2026-05-04"
-depends = [
-    "R (>= 3.5.0)",
-    "methods",
-]
-suggests = [
-    "parallel",
-    "tinytest",
-    "ncdf4",
-    "sf (>= 0.9-8)",
-    "deldir",
-    "XML",
-    "leaflet (>= 2.2.1)",
-    "htmlwidgets",
-    "future",
-    "future.apply",
-]
-linking_to = [
-    "Rcpp",
-]
-imports = [
-    "Rcpp (>= 1.0-10)",
-]
-system_requirements = "C++17, GDAL (>= 2.2.3), GEOS (>= 3.4.0), PROJ (>= 4.9.3), TBB, sqlite3"
-encoding = "UTF-8"
-language = "en-US"
-maintainer = "Robert J. Hijmans <r.hijmans@gmail.com>"
-description = "Methods for spatial data analysis with vector (points, lines, polygons) and raster (grid) data. Methods for vector data include geometric operations such as intersect and buffer. Raster methods include local, focal, global, zonal and geometric operations. The predict and interpolate methods facilitate the use of regression type (interpolation, machine learning) models for spatial prediction, including with satellite remote sensing data. Processing of very large files is supported. See the manual and tutorials on <https://rspatial.org/> to get started."
-license = "GPL (>= 3)"
-url = "https://rspatial.org/, https://rspatial.github.io/terra/"
-bug_reports = "https://github.com/rspatial/terra/issues"
-lazy_load = "yes"
-"authors@r" = "c( person(\"Robert J.\", \"Hijmans\", role=c(\"cre\", \"aut\"),   email=\"r.hijmans@gmail.com\", comment=c(ORCID=\"0000-0001-5872-2872\")),\t\t\t person(\"Andrew\", \"Brown\", role=\"aut\", comment=c(ORCID=\"0000-0002-4565-533X\")), person(\"Márcia\", \"Barbosa\", role=\"aut\", comment=c(ORCID=\"0000-0001-8972-7713\")), person(\"Krzysztof\", \"Dyba\", role=\"ctb\", comment=c(ORCID=\"0000-0002-8614-3816\")), person(\"Roger\", \"Bivand\", role=\"ctb\", comment=c(ORCID=\"0000-0003-2392-6140\")), person(\"Michael\", \"Chirico\", role=\"ctb\", comment=c(ORCID=\"0000-0003-0787-087X\")), person(\"Emanuele\", \"Cordano\", role=\"ctb\",comment=c(ORCID=\"0000-0002-3508-5898\")), person(\"Edzer\", \"Pebesma\", role=\"ctb\", comment=c(ORCID=\"0000-0001-8049-7069\")), person(\"Barry\", \"Rowlingson\", role=\"ctb\", comment=c(ORCID=\"0000-0002-8586-6625\")), person(\"Michael D.\", \"Sumner\", role=\"ctb\", comment=c(ORCID=\"0000-0002-2471-7511\")))"
-needs_compilation = "yes"
-author = "Robert J. Hijmans [cre, aut] (ORCID: <https://orcid.org/0000-0001-5872-2872>), Andrew Brown [aut] (ORCID: <https://orcid.org/0000-0002-4565-533X>), Márcia Barbosa [aut] (ORCID: <https://orcid.org/0000-0001-8972-7713>), Krzysztof Dyba [ctb] (ORCID: <https://orcid.org/0000-0002-8614-3816>), Roger Bivand [ctb] (ORCID: <https://orcid.org/0000-0003-2392-6140>), Michael Chirico [ctb] (ORCID: <https://orcid.org/0000-0003-0787-087X>), Emanuele Cordano [ctb] (ORCID: <https://orcid.org/0000-0002-3508-5898>), Edzer Pebesma [ctb] (ORCID: <https://orcid.org/0000-0001-8049-7069>), Barry Rowlingson [ctb] (ORCID: <https://orcid.org/0000-0002-8586-6625>), Michael D. Sumner [ctb] (ORCID: <https://orcid.org/0000-0002-2471-7511>)"
 repository = "CRAN"
 
 [renv.packages.textshaping]
@@ -6216,6 +5205,6 @@ repository = "CRAN"
 
 [deployment_error]
 code = "deployFailed"
-message = "Unable to resolve dependency: Unable to resolve dependencies from manifest.json: Stopping because installation of RNetCDF failed. Check your manifest.json or renv.lock.. Please check the logs for more information."
+message = "Runtime error: Unable to start the app due to a runtime error. Please check the logs for more information."
 operation = "publish"
 

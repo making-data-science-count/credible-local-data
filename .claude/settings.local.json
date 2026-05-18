@@ -16,7 +16,23 @@
       "WebFetch(domain:www.inaturalist.org)",
       "WebFetch(domain:docs.ropensci.org)",
       "Bash(curl -s \"https://raw.githubusercontent.com/ropensci/rinat/master/R/get_inat_obs.R\")",
-      "Bash(curl -s \"https://www.inaturalist.org/observations.csv?per_page=1&page=1&quality_grade=research\")"
+      "Bash(curl -s \"https://www.inaturalist.org/observations.csv?per_page=1&page=1&quality_grade=research\")",
+      "Bash(awk '/^# =+$/{getline header; if\\(header ~ /AIR QUALITY: AQI helper/\\){print NR-1\": start\"; flag=1} else if\\(flag && header ~ /^# [A-Z]/ && header !~ /AIR QUALITY/\\){print NR-1\": end \"header; flag=0; exit}} flag{}' /Users/joshuarosenberg/credible-local-data/app.R)",
+      "Bash(grep -n \"^# =\\\\+\\\\$\" /Users/joshuarosenberg/credible-local-data/app.R)",
+      "Bash(grep *)",
+      "Bash(sed -i.bak '285,408d' /Users/joshuarosenberg/credible-local-data/app.R)",
+      "Bash(sed -n '283,290p' /Users/joshuarosenberg/credible-local-data/app.R)",
+      "Bash(sed -i.bak '720,1001d' /Users/joshuarosenberg/credible-local-data/app.R)",
+      "Bash(sed -n '716,728p' /Users/joshuarosenberg/credible-local-data/app.R)",
+      "Bash(sed -i.bak '1646,2199d' /Users/joshuarosenberg/credible-local-data/app.R)",
+      "Bash(sed -n '1640,1652p' /Users/joshuarosenberg/credible-local-data/app.R)",
+      "Bash(awk 'NR>=786 && NR<=975 && /observeEvent|task\\\\$result|^    # ===|^    [a-zA-Z_]+ <- ExtendedTask/' /Users/joshuarosenberg/credible-local-data/app.R)",
+      "Bash(awk 'NR>=1100 && NR<=1370 && /observeEvent|task\\\\$result|^    # ===|^    [a-zA-Z_]+ <- ExtendedTask/' /Users/joshuarosenberg/credible-local-data/app.R)",
+      "Bash(awk 'NR>=1106 && NR<=1500 && /observeEvent|task\\\\$result|^    # ===|^    [a-zA-Z_]+ <- ExtendedTask|state_selection|year_selection/{print NR\": \"$0}' /Users/joshuarosenberg/credible-local-data/app.R)",
+      "Bash(sed -i.bak '974,1273d' /Users/joshuarosenberg/credible-local-data/app.R)",
+      "Bash(sed -n '970,978p' /Users/joshuarosenberg/credible-local-data/app.R)",
+      "Bash(sed -i.bak '786,816d' /Users/joshuarosenberg/credible-local-data/app.R)",
+      "Bash(sed -n '780,795p' /Users/joshuarosenberg/credible-local-data/app.R)"
     ]
   }
 }

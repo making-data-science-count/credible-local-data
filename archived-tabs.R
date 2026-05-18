@@ -9,6 +9,23 @@ if (length(missing_pkgs) > 0) {
   install.packages(missing_pkgs, dependencies = TRUE)
 }
 
+# rinat was archived from CRAN — install from GitHub if missing
+if (!requireNamespace("rinat", quietly = TRUE)) {
+  if (!requireNamespace("remotes", quietly = TRUE)) install.packages("remotes")
+  tryCatch(
+    remotes::install_github("ropensci/rinat"),
+    error = function(e) packageStartupMessage("Optional package 'rinat' not installed.")
+  )
+}
+
+# RAQSAPI is only needed for the archived Air Quality tab — install if available
+if (!requireNamespace("RAQSAPI", quietly = TRUE)) {
+  tryCatch(
+    install.packages("RAQSAPI"),
+    error = function(e) packageStartupMessage("Optional package 'RAQSAPI' not installed.")
+  )
+}
+
 # Attempt to install climateR from GitHub if it's needed and missing
 if (!requireNamespace("climateR", quietly = TRUE)) {
   if (!requireNamespace("remotes", quietly = TRUE)) {
@@ -39,6 +56,28 @@ library(promises)
 library(future)
 library(bslib)
 plan(multisession)  # Enable async execution for ExtendedTask
+
+# Check if rinat is installed, if not provide instructions
+if (!requireNamespace("rinat", quietly = TRUE)) {
+  warning("rinat package not found. Install with: install.packages('rinat')")
+} else {
+  library(rinat)
+}
+
+# Check if RAQSAPI is installed, if not provide instructions
+if (!requireNamespace("RAQSAPI", quietly = TRUE)) {
+  warning("RAQSAPI package not found. Install with: install.packages('RAQSAPI')")
+} else {
+  library(RAQSAPI)
+}
+
+# AQS API credentials — set AQS_USERNAME and AQS_KEY in .Renviron (see .Renviron.example)
+# Falls back to the EPA public test account if env vars are not set.
+# Register for real credentials at: https://aqs.epa.gov/data/api/signup
+aqs_creds <- RAQSAPI::aqs_credentials(
+  username = ifelse(Sys.getenv("AQS_USERNAME") != "", Sys.getenv("AQS_USERNAME"), "test@aqs.api"),
+  key      = ifelse(Sys.getenv("AQS_KEY")      != "", Sys.getenv("AQS_KEY"),      "test")
+)
 
 # Check if climateR is installed, if not provide instructions
 if (!requireNamespace("climateR", quietly = TRUE)) {
@@ -97,6 +136,21 @@ fips_clean <- fips_xwalk %>%
 states_df <- fips_clean %>%
   distinct(state_name, state_fips) %>%
   arrange(state_name)
+
+# iNaturalist taxon group mapping (student-friendly name -> iconic taxon name)
+inat_taxon_groups <- c(
+  "All Groups" = "",
+  "Birds" = "Aves",
+  "Mammals" = "Mammalia",
+  "Reptiles" = "Reptilia",
+  "Amphibians" = "Amphibia",
+  "Fish" = "Actinopterygii",
+  "Insects" = "Insecta",
+  "Arachnids" = "Arachnida",
+  "Plants" = "Plantae",
+  "Fungi" = "Fungi",
+  "Mollusks" = "Mollusca"
+)
 
 # CREDIBLE Brand Colors
 # Primary (Coral Red): #E63946
@@ -281,6 +335,130 @@ a:hover {
 
 # Add resource path for logo
 addResourcePath("images", ".")
+
+# =============================================================================
+# AIR QUALITY: AQI helper data and functions
+# (Ported from aqs.ipynb notebook)
+# =============================================================================
+
+# Parameter codes mapped to display names
+air_params <- c(
+  "44201" = "Ozone (O3, ppm)",
+  "88101" = "PM2.5 (ug/m3)",
+  "81102" = "PM10 (ug/m3)",
+  "42101" = "Carbon Monoxide (ppm)",
+  "42401" = "Sulfur Dioxide (ppb)",
+  "42602" = "Nitrogen Dioxide (ppb)"
+)
+
+# EPA AQI breakpoints: each entry is (AQI_Low, AQI_High, Conc_Low, Conc_High)
+aqi_breakpoints <- list(
+  "88101" = list(   # PM2.5, 24-hr, ug/m3
+    c(0, 50, 0.0, 12.0),
+    c(51, 100, 12.1, 35.4),
+    c(101, 150, 35.5, 55.4),
+    c(151, 200, 55.5, 150.4),
+    c(201, 300, 150.5, 250.4),
+    c(301, 400, 250.5, 350.4),
+    c(401, 500, 350.5, 500.4)
+  ),
+  "81102" = list(   # PM10, 24-hr, ug/m3
+    c(0, 50, 0, 54),
+    c(51, 100, 55, 154),
+    c(101, 150, 155, 254),
+    c(151, 200, 255, 354),
+    c(201, 300, 355, 424),
+    c(301, 400, 425, 504),
+    c(401, 500, 505, 604)
+  ),
+  "44201" = list(   # Ozone, 8-hr, ppm
+    c(0, 50, 0.000, 0.054),
+    c(51, 100, 0.055, 0.070),
+    c(101, 150, 0.071, 0.085),
+    c(151, 200, 0.086, 0.105),
+    c(201, 300, 0.106, 0.200)
+  ),
+  "42101" = list(   # CO, 8-hr, ppm
+    c(0, 50, 0.0, 4.4),
+    c(51, 100, 4.5, 9.4),
+    c(101, 150, 9.5, 12.4),
+    c(151, 200, 12.5, 15.4),
+    c(201, 300, 15.5, 30.4),
+    c(301, 400, 30.5, 40.4),
+    c(401, 500, 40.5, 50.4)
+  ),
+  "42401" = list(   # SO2, 1-hr, ppb
+    c(0, 50, 0, 35),
+    c(51, 100, 36, 75),
+    c(101, 150, 76, 185),
+    c(151, 200, 186, 304),
+    c(201, 300, 305, 604),
+    c(301, 400, 605, 804),
+    c(401, 500, 805, 1004)
+  ),
+  "42602" = list(   # NO2, 1-hr, ppb
+    c(0, 50, 0, 53),
+    c(51, 100, 54, 100),
+    c(101, 150, 101, 360),
+    c(151, 200, 361, 649),
+    c(201, 300, 650, 1249),
+    c(301, 400, 1250, 1649),
+    c(401, 500, 1650, 2049)
+  )
+)
+
+# Decimal truncation spec per EPA guidelines
+pollutant_decimals <- c(
+  "88101" = 1, "81102" = 0, "44201" = 3,
+  "42101" = 1, "42401" = 0, "42602" = 0
+)
+
+# Truncate to specified decimal places (floor, not round)
+aqi_truncate <- function(n, decimals = 0) {
+  if (is.null(n) || is.na(n) || !is.finite(n)) return(NULL)
+  floor(n * 10^decimals) / 10^decimals
+}
+
+# Calculate individual AQI for a single pollutant measurement
+calculate_individual_aqi <- function(pollutant_code, concentration) {
+  if (!(pollutant_code %in% names(aqi_breakpoints))) return(NA_real_)
+  if (is.null(concentration) || is.na(concentration) || !is.finite(concentration)) return(NA_real_)
+
+  decimals <- pollutant_decimals[[pollutant_code]]
+  C_p <- aqi_truncate(concentration, decimals)
+  if (is.null(C_p)) return(NA_real_)
+
+  table <- aqi_breakpoints[[pollutant_code]]
+  for (bp in table) {
+    I_lo <- bp[1]; I_hi <- bp[2]; C_lo <- bp[3]; C_hi <- bp[4]
+    if (C_p >= C_lo && C_p <= C_hi) {
+      if ((C_hi - C_lo) == 0) return(I_lo)
+      aqi <- ((I_hi - I_lo) / (C_hi - C_lo)) * (C_p - C_lo) + I_lo
+      return(round(aqi))
+    }
+  }
+
+  # Beyond highest breakpoint: extrapolate using last bracket
+  last_bp <- table[[length(table)]]
+  I_lo <- last_bp[1]; I_hi <- last_bp[2]; C_lo <- last_bp[3]; C_hi <- last_bp[4]
+  if (C_p > C_hi && (C_hi - C_lo) > 0) {
+    aqi <- ((I_hi - I_lo) / (C_hi - C_lo)) * (C_p - C_lo) + I_lo
+    return(round(aqi))
+  }
+
+  NA_real_
+}
+
+# Calculate composite AQI = max of all individual AQIs
+# conc_named_vec: named numeric vector, names are parameter codes
+calculate_composite_aqi <- function(conc_named_vec) {
+  individual <- sapply(names(conc_named_vec), function(code) {
+    calculate_individual_aqi(code, conc_named_vec[[code]])
+  })
+  valid <- individual[!is.na(individual)]
+  if (length(valid) == 0) return(NA_real_)
+  max(valid)
+}
 
 # UI
 ui <- dashboardPage(
@@ -499,15 +677,14 @@ ui <- dashboardPage(
                     tags$div(style = "padding: 10px 0;",
                       tags$h6("Primary Indicators:", style = "margin-top: 0;"),
                       tags$ul(style = "margin-bottom: 15px;",
-                        tags$li(tags$strong("pH"), " - Measures acidity/alkalinity on a 0-14 scale. 7 is neutral; below 7 is acidic, above 7 is basic. Most aquatic life thrives between 6.5-9.0. ", tags$a("EPA fact sheet", href = "https://www.epa.gov/system/files/documents/2021-07/parameter-factsheet_ph.pdf", target = "_blank")),
-                        tags$li(tags$strong("Turbidity"), " - Measures water clarity (how cloudy it is). Higher numbers mean cloudier water, which can harm fish gills and block sunlight for plants. ", tags$a("EPA fact sheet", href = "https://www.epa.gov/system/files/documents/2021-07/parameter-factsheet_turbidity.pdf", target = "_blank")),
-                        tags$li(tags$strong("Temperature"), " - Water temperature affects how much oxygen water can hold and influences aquatic life behavior and survival. ", tags$a("EPA fact sheet", href = "https://www.epa.gov/system/files/documents/2021-07/parameter-factsheet_temperature.pdf", target = "_blank")),
-                        tags$li(tags$strong("Dissolved oxygen"), " - The amount of oxygen available in water for fish and other organisms to breathe. Low levels can cause fish kills. ", tags$a("EPA fact sheet", href = "https://www.epa.gov/system/files/documents/2021-07/parameter-factsheet_do.pdf", target = "_blank")),
-                        tags$li(tags$strong("E. coli"), " - A bacterium used as an indicator of fecal contamination. EPA recommends a geometric mean of ", tags$strong("126 cfu/100 mL"), " and a statistical threshold value (STV) of ", tags$strong("410 cfu/100 mL"), " for recreational waters. ", tags$a("EPA fact sheet", href = "https://www.epa.gov/system/files/documents/2021-07/parameter-factsheet_e.-coli.pdf", target = "_blank"))
+                        tags$li(tags$strong("pH"), " - Measures acidity/alkalinity on a 0-14 scale. 7 is neutral; below 7 is acidic, above 7 is basic. Most aquatic life thrives between 6.5-9.0."),
+                        tags$li(tags$strong("Phosphorus"), " - A nutrient essential for life, but too much causes algae blooms that deplete oxygen. Often comes from fertilizers and detergents."),
+                        tags$li(tags$strong("Turbidity"), " - Measures water clarity (how cloudy it is). Higher numbers mean cloudier water, which can harm fish gills and block sunlight for plants."),
+                        tags$li(tags$strong("Temperature"), " - Water temperature affects how much oxygen water can hold and influences aquatic life behavior and survival."),
+                        tags$li(tags$strong("Dissolved oxygen"), " - The amount of oxygen available in water for fish and other organisms to breathe. Low levels can cause fish kills.")
                       ),
                       tags$h6("Additional Parameters:"),
                       tags$ul(
-                        tags$li(tags$strong("Phosphorus"), " - A nutrient essential for life, but too much causes algae blooms that deplete oxygen. Often comes from fertilizers and detergents."),
                         tags$li(tags$strong("Nitrate"), " - A nutrient that often comes from fertilizers, sewage, or animal waste. High levels can harm aquatic ecosystems and drinking water."),
                         tags$li(tags$strong("Nitrite"), " - Related to nitrate in the nitrogen cycle. Can indicate recent pollution from sewage or animal waste."),
                         tags$li(tags$strong("Conductivity"), " - How well water conducts electricity, which indicates the amount of dissolved minerals and salts."),
@@ -526,112 +703,30 @@ ui <- dashboardPage(
                   fluidRow(
                     column(6,
                            h5("Primary Indicators"),
-                           checkboxGroupInput(
-                             "parameters_primary",
-                             NULL,
-                             choiceNames = list(
-                               tags$span(
-                                 "pH ",
-                                 tags$span(
-                                   icon("info-circle"),
-                                   title = "EPA pH fact sheet: pH measures the hydrogen ion balance of water and affects aquatic life. Most waters that support aquatic life fall between pH 6.5 and 9.0.",
-                                   style = "color: #3c8dbc; cursor: help; margin-left: 4px;"
-                                 ),
-                                 tags$a(
-                                   icon("external-link"),
-                                   href = "https://www.epa.gov/system/files/documents/2021-07/parameter-factsheet_ph.pdf",
-                                   target = "_blank",
-                                   title = "Open EPA pH fact sheet",
-                                   style = "margin-left: 6px;"
-                                 )
-                               ),
-                               tags$span(
-                                 "Turbidity ",
-                                 tags$span(
-                                   icon("info-circle"),
-                                   title = "EPA turbidity fact sheet: Settleable and suspended solids should not reduce the depth of the compensation point for photosynthetic activity by more than 10 percent from the seasonally established norm for aquatic life.",
-                                   style = "color: #3c8dbc; cursor: help; margin-left: 4px;"
-                                 ),
-                                 tags$a(
-                                   icon("external-link"),
-                                   href = "https://www.epa.gov/system/files/documents/2021-07/parameter-factsheet_turbidity.pdf",
-                                   target = "_blank",
-                                   title = "Open EPA turbidity fact sheet",
-                                   style = "margin-left: 6px;"
-                                 )
-                               ),
-                               tags$span(
-                                 "Temperature ",
-                                 tags$span(
-                                   icon("info-circle"),
-                                   title = "EPA temperature fact sheet: Water temperature shapes habitat quality, organism metabolism, and how much dissolved oxygen water can hold.",
-                                   style = "color: #3c8dbc; cursor: help; margin-left: 4px;"
-                                 ),
-                                 tags$a(
-                                   icon("external-link"),
-                                   href = "https://www.epa.gov/system/files/documents/2021-07/parameter-factsheet_temperature.pdf",
-                                   target = "_blank",
-                                   title = "Open EPA temperature fact sheet",
-                                   style = "margin-left: 6px;"
-                                 )
-                               ),
-                               tags$span(
-                                 "Dissolved oxygen ",
-                                 tags$span(
-                                   icon("info-circle"),
-                                   title = "EPA dissolved oxygen fact sheet: Dissolved oxygen is essential for fish and aquatic organisms, and low concentrations can stress or kill aquatic life.",
-                                   style = "color: #3c8dbc; cursor: help; margin-left: 4px;"
-                                 ),
-                                 tags$a(
-                                   icon("external-link"),
-                                   href = "https://www.epa.gov/system/files/documents/2021-07/parameter-factsheet_do.pdf",
-                                   target = "_blank",
-                                   title = "Open EPA dissolved oxygen fact sheet",
-                                   style = "margin-left: 6px;"
-                                 )
-                               ),
-                               tags$span(
-                                 "E. coli ",
-                                 tags$span(
-                                   icon("info-circle"),
-                                   title = "EPA E. coli fact sheet: Geometric mean of 126 cfu/100 mL and statistical threshold value (STV) of 410 cfu/100 mL for recreational waters. E. coli indicates fecal contamination.",
-                                   style = "color: #3c8dbc; cursor: help; margin-left: 4px;"
-                                 ),
-                                 tags$a(
-                                   icon("external-link"),
-                                   href = "https://www.epa.gov/system/files/documents/2021-07/parameter-factsheet_e.-coli.pdf",
-                                   target = "_blank",
-                                   title = "Open EPA E. coli fact sheet",
-                                   style = "margin-left: 6px;"
-                                 )
-                               )
-                             ),
-                             choiceValues = c("pH", "Turbidity", "Temperature", "Dissolved oxygen", "Escherichia coli"),
-                             selected = c("pH", "Turbidity", "Temperature", "Dissolved oxygen", "Escherichia coli"),
-                             inline = FALSE
-                           )
+                           checkboxGroupInput("parameters_primary", NULL,
+                                              choices = c("pH" = "pH",
+                                                          "Phosphorus" = "Phosphorus",
+                                                          "Turbidity" = "Turbidity",
+                                                          "Temperature" = "Temperature",
+                                                          "Dissolved oxygen" = "Dissolved oxygen"),
+                                              selected = c("pH", "Turbidity"),
+                                              inline = FALSE)
                     ),
                     column(6,
-                           box(
-                             title = "Additional Parameters",
-                             width = NULL,
-                             collapsible = TRUE,
-                             collapsed = TRUE,
-                             checkboxGroupInput("parameters_additional", NULL,
-                                                choices = c("Phosphorus" = "Phosphorus",
-                                                            "Nitrate" = "Nitrate",
-                                                            "Nitrite" = "Nitrite",
-                                                            "Conductivity" = "Conductivity",
-                                                            "Total dissolved solids" = "Total dissolved solids",
-                                                            "Alkalinity" = "Alkalinity",
-                                                            "Hardness" = "Hardness",
-                                                            "Chloride" = "Chloride",
-                                                            "Sulfate" = "Sulfate",
-                                                            "Ammonia" = "Ammonia",
-                                                            "Total nitrogen" = "Total nitrogen"),
-                                                selected = character(0),
-                                                inline = FALSE)
-                           )
+                           h5("Additional Parameters"),
+                           checkboxGroupInput("parameters_additional", NULL,
+                                              choices = c("Nitrate" = "Nitrate",
+                                                          "Nitrite" = "Nitrite",
+                                                          "Conductivity" = "Conductivity",
+                                                          "Total dissolved solids" = "Total dissolved solids",
+                                                          "Alkalinity" = "Alkalinity",
+                                                          "Hardness" = "Hardness",
+                                                          "Chloride" = "Chloride",
+                                                          "Sulfate" = "Sulfate",
+                                                          "Ammonia" = "Ammonia",
+                                                          "Total nitrogen" = "Total nitrogen"),
+                                              selected = c("Nitrate"),
+                                              inline = FALSE)
                     )
                   ),
                   
@@ -777,7 +872,6 @@ ui <- dashboardPage(
                           tags$tr(tags$td("Dissolved oxygen"), tags$td("> 5 mg/L"), tags$td("Fish need oxygen to survive")),
                           tags$tr(tags$td("Temperature"), tags$td("< 20°C (cold water fish)"), tags$td("Warm water holds less oxygen")),
                           tags$tr(tags$td("Turbidity"), tags$td("< 10 NTU"), tags$td("Cloudy water blocks sunlight for plants")),
-                          tags$tr(tags$td("E. coli"), tags$td("GM ≤ 126 / STV ≤ 410 cfu/100 mL"), tags$td("Indicator of fecal contamination in recreational waters")),
                           tags$tr(tags$td("Phosphorus"), tags$td("< 0.1 mg/L"), tags$td("Excess causes algae blooms")),
                           tags$tr(tags$td("Ammonia"), tags$td("< 0.02 mg/L"), tags$td("Toxic to fish at low concentrations"))
                         )
@@ -801,6 +895,288 @@ ui <- dashboardPage(
               ),
 
       ), # end Water Quality tabPanel
+
+      # ======================================================================
+      # AIR QUALITY TAB
+      # ======================================================================
+      tabPanel("Air Quality",
+        br(),
+        p(style = "color: #6c757d; font-size: 13px; margin-bottom: 4px;",
+          "Access EPA Air Quality System (AQS) data. Data availability has up to a 6-month delay from the present date."),
+    fluidRow(
+      box(
+        title = "Access Air Quality Data", status = "primary", solidHeader = TRUE, width = 12,
+        fluidRow(
+          column(3,
+                 selectInput("air_state_selection", "Select State:",
+                             choices = c("Choose a state..." = "",
+                                         setNames(states_df$state_name, states_df$state_name)),
+                             selected = "Tennessee")
+          ),
+          column(3,
+                 selectInput("air_county_selection", "Select County:",
+                             choices = {
+                               tn <- fips_clean[fips_clean$state_name == "Tennessee", "county_display", drop = TRUE]
+                               c("Choose a county..." = "", setNames(tn, tn))
+                             },
+                             selected = "Knox County")
+          ),
+          column(3,
+                 selectInput("air_year_selection", "Select Year:",
+                             choices = 2025:2000,
+                             selected = 2024)
+          )
+        ),
+
+        fluidRow(
+          column(4,
+                 br(),
+                 actionButton("find_air_monitors", "Step 1: Find Sites",
+                              class = "btn-primary", icon = icon("search")),
+                 br(), br(),
+                 actionButton("refresh_air_data", "Refresh/Clear",
+                              class = "btn-warning", icon = icon("refresh"))
+          )
+        ),
+
+        hr(),
+        h4("Data Processing Status"),
+        verbatimTextOutput("air_status_text"),
+
+        # Monitor selection — appears after Step 1 succeeds
+        conditionalPanel(
+          condition = "output.air_monitors_found == true",
+          hr(),
+          h4("Site Selection"),
+          p("Select a monitoring site to see available parameters."),
+          p(style = "color: #6c757d; font-size: 13px; font-style: italic;",
+            "Tip: Each query adds to your existing data. Use 'Refresh/Clear' to start fresh."),
+          fluidRow(
+            column(8,
+                   selectInput("air_site_selection", "Select Monitoring Site:",
+                               choices = c("Choose a site..." = ""),
+                               selected = "")
+            )
+          ),
+
+          # Parameter selection — appears after site is selected
+          conditionalPanel(
+            condition = "input.air_site_selection != ''",
+            hr(),
+            h4("Select Parameters"),
+            p("Choose which pollutants to fetch for this site."),
+            uiOutput("air_parameters_ui"),
+            br(),
+            actionButton("fetch_air_data", "Step 2: Add Data",
+                         class = "btn-success", icon = icon("plus"))
+          )
+        )
+      )
+    ),
+
+    # Air quality loading indicator
+    conditionalPanel(
+      condition = "output.air_loading_visible == true",
+      fluidRow(
+        box(
+          title = "Data Processing", status = "primary", solidHeader = TRUE, width = 12,
+          div(class = "loading-container",
+              div(class = "loading-spinner"),
+              h4("Fetching Air Quality Data..."),
+              p("Connecting to EPA Air Quality System and processing data"),
+              p("This may take 10-60 seconds depending on data availability",
+                style = "font-size: 12px; margin-top: 10px; opacity: 0.8;")
+          )
+        )
+      )
+    ),
+
+    # Air quality data preview and export
+    conditionalPanel(
+      condition = "output.air_data_fetched == true",
+      fluidRow(
+        box(
+          title = "Air Quality Data Preview", status = "warning", solidHeader = TRUE, width = 12,
+          DT::dataTableOutput("air_preview_wide"),
+          div(style = "margin-top: 12px; display: flex; gap: 10px;",
+              downloadButton("download_air_data", "Download as CSV",
+                             class = "btn-success", icon = icon("download")),
+              actionButton("send_air_to_codap", "Send to CODAP",
+                           class = "btn-info", icon = icon("share-square"))
+          )
+        )
+      )
+    ),
+
+    # Rivulet utils attribution
+    br(),
+    p(style = "color: #6c757d; font-size: 11px; font-style: italic; margin-top: 20px;",
+      "This tab is based on ",
+      tags$a(href = "https://github.com/CalCoRE/rivulet-utils", target = "_blank",
+             style = "color: #3B7A8C;", "Rivulet utils"),
+      " (Python/Jupyter notebooks), originally developed as part of work on a grant by the National Science Foundation (Award #2445609). Notebook contributions by Michelle Wilkerson, Adelmo Eloy, Danny Zheng, Lucas Coletti, and Kolby Caban.")
+
+      ), # end Air Quality tabPanel
+
+      # ======================================================================
+      # BIODIVERSITY (iNATURALIST) TAB
+      # ======================================================================
+      tabPanel("Biodiversity",
+        br(),
+        p(style = "color: #6c757d; font-size: 13px; margin-bottom: 4px;",
+          "Explore biodiversity observations from iNaturalist, a citizen science platform where people share wildlife and plant sightings."),
+        fluidRow(
+          box(
+            title = "Access Biodiversity Data", status = "primary", solidHeader = TRUE, width = 12,
+            fluidRow(
+              column(3,
+                     selectInput("inat_state_selection", "Select State:",
+                                 choices = c("Choose a state..." = "",
+                                             setNames(states_df$state_name, states_df$state_name)),
+                                 selected = "Tennessee")
+              ),
+              column(3,
+                     selectizeInput("inat_county_selection", "Select County/Counties:",
+                                 choices = {
+                                   tn <- fips_clean[fips_clean$state_name == "Tennessee", "county_display", drop = TRUE]
+                                   setNames(tn, tn)
+                                 },
+                                 selected = "Knox County",
+                                 multiple = TRUE,
+                                 options = list(placeholder = "Select one or more counties"))
+              ),
+              column(3,
+                     selectInput("inat_taxon_group", "Taxon Group:",
+                                 choices = names(inat_taxon_groups),
+                                 selected = "All Groups")
+              ),
+              column(3,
+                     textInput("inat_taxon_search", "Species Search (optional):",
+                               placeholder = "e.g., Robin, Oak, Monarch")
+              )
+            ),
+            fluidRow(
+              column(3,
+                     dateRangeInput("inat_date_range", "Date Range:",
+                                    start = Sys.Date() - 365,
+                                    end = Sys.Date(),
+                                    min = "2008-01-01",
+                                    max = Sys.Date())
+              ),
+              column(3,
+                     selectInput("inat_quality_grade", "Quality Grade:",
+                                 choices = c("Research Grade Only" = "research",
+                                             "All (including casual)" = "any"),
+                                 selected = "research")
+              ),
+              column(3,
+                     sliderInput("inat_max_results", "Max Observations:",
+                                 min = 50, max = 1000,
+                                 value = 200, step = 50)
+              )
+            ),
+
+            # Expandable help section
+            tags$details(
+              tags$summary("What do these options mean?"),
+              tags$div(style = "padding: 10px 0;",
+                tags$ul(
+                  tags$li(tags$strong("Taxon Group"), " - Filter by broad categories like Birds, Plants, or Insects. Choose 'All Groups' to see everything."),
+                  tags$li(tags$strong("Species Search"), " - Optionally search for a specific species by common or scientific name."),
+                  tags$li(tags$strong("Quality Grade"), " - 'Research Grade' observations have been verified by the community (at least 2 people agree on the species). 'All' includes unverified sightings."),
+                  tags$li(tags$strong("Max Observations"), " - Limits how many observations are returned. Larger numbers take longer to fetch.")
+                )
+              )
+            ),
+            br(),
+
+            fluidRow(
+              column(3,
+                     actionButton("fetch_inat_data", "Fetch Biodiversity Data",
+                                  class = "btn-primary", icon = icon("leaf")),
+                     br(), br(),
+                     actionButton("refresh_inat_data", "Refresh/Clear",
+                                  class = "btn-warning", icon = icon("refresh"))
+              )
+            ),
+
+            # Data Processing Status
+            hr(),
+            h4("Data Processing Status"),
+            verbatimTextOutput("inat_status_text")
+          )
+        ),
+
+        # Loading indicator
+        conditionalPanel(
+          condition = "output.inat_loading_visible == true",
+          fluidRow(
+            box(
+              title = "Data Processing", status = "primary", solidHeader = TRUE, width = 12,
+              div(class = "loading-container",
+                  div(class = "loading-spinner"),
+                  h4("Fetching Biodiversity Data..."),
+                  p("Connecting to iNaturalist and retrieving observations"),
+                  p("This may take 10-30 seconds depending on the number of observations",
+                    style = "font-size: 12px; margin-top: 10px; opacity: 0.8;")
+              )
+            )
+          )
+        ),
+
+        # Data preview and export
+        conditionalPanel(
+          condition = "output.inat_data_fetched == true",
+          fluidRow(
+            box(
+              title = "Biodiversity Data Preview", status = "warning", solidHeader = TRUE, width = 12,
+              DT::dataTableOutput("inat_preview"),
+              div(style = "margin-top: 15px;",
+                div(style = "margin-bottom: 12px;",
+                  actionButton("send_inat_to_codap", "Send to CODAP for Analysis",
+                               class = "btn-primary btn-lg", icon = icon("chart-bar"),
+                               style = "font-size: 16px; padding: 12px 24px;"),
+                  p(style = "font-size: 12px; color: #6c757d; margin-top: 5px; margin-bottom: 0;",
+                    "Open your data in CODAP to create graphs and explore patterns")
+                ),
+                div(
+                  downloadButton("download_inat_data", "Download as CSV",
+                                 class = "btn-warning", icon = icon("download")),
+                  span(style = "font-size: 12px; color: #6c757d; margin-left: 10px;",
+                       "For use in spreadsheet software")
+                )
+              )
+            )
+          )
+        ),
+
+        # Understanding Biodiversity Data reference section
+        fluidRow(
+          box(
+            title = "Understanding Your Data: Biodiversity Observations",
+            status = "info", solidHeader = TRUE, width = 12, collapsible = TRUE, collapsed = TRUE,
+            p("iNaturalist data comes from citizen scientists — everyday people sharing what they observe in nature. ",
+              "Here are some things to keep in mind when interpreting this data:"),
+            tags$ul(
+              tags$li(tags$strong("Observation bias: "), "More observations happen near roads, trails, and populated areas. Fewer observations doesn't necessarily mean fewer species."),
+              tags$li(tags$strong("Research Grade: "), "These observations have been reviewed and agreed upon by at least two people. They're more reliable for species identification."),
+              tags$li(tags$strong("Seasonal patterns: "), "Some species are only visible at certain times of year (e.g., migrating birds, blooming flowers)."),
+              tags$li(tags$strong("Common vs. rare: "), "Common species get reported more often. The data shows what people notice, not everything that exists.")
+            ),
+            hr(),
+            p(style = "font-size: 11px; color: #6c757d; margin-bottom: 0;",
+              tags$strong("Source: "),
+              "iNaturalist. A joint initiative of the ",
+              tags$a(href = "https://www.calacademy.org/", target = "_blank", "California Academy of Sciences"),
+              " and the ",
+              tags$a(href = "https://www.nationalgeographic.org/", target = "_blank", "National Geographic Society"),
+              ". ",
+              tags$a(href = "https://www.inaturalist.org/", target = "_blank", "www.inaturalist.org")
+            )
+          )
+        )
+
+      ) # end Biodiversity tabPanel
     ), # end tabsetPanel
 
     # Footer
@@ -828,7 +1204,31 @@ server <- function(input, output, session) {
       current_location = "",
       loading_visible = FALSE,
       available_sites = NULL,
-      fetch_start_time = NULL  # Track when fetch started for elapsed time display
+      fetch_start_time = NULL,  # Track when fetch started for elapsed time display
+
+      # Air quality data
+      air_wide_data = NULL,
+      air_long_data = NULL,
+      air_data_fetched = FALSE,
+      air_monitors_found = FALSE,
+      air_status = "Ready to fetch air quality data...",
+      air_current_state_fips = "",
+      air_current_county_fips = "",
+      air_current_location = "",
+      air_loading_visible = FALSE,
+      air_available_monitors = NULL,
+      air_site_params = NULL,
+      air_fetch_start_time = NULL,  # Track when fetch started for elapsed time display
+      air_base_status = NULL,  # Base message for elapsed time updates (avoids race condition)
+
+      # iNaturalist / Biodiversity data
+      inat_data = NULL,
+      inat_data_fetched = FALSE,
+      inat_status = "Ready to fetch biodiversity data...",
+      inat_current_location = "",
+      inat_loading_visible = FALSE,
+      inat_fetch_start_time = NULL,
+      inat_fetched_state = ""
 
       ## ARCHIVED: Weather reactive values
       ## To restore: Uncomment the sections below
@@ -854,6 +1254,48 @@ server <- function(input, output, session) {
       values$data_fetched
     })
     outputOptions(output, "data_fetched", suspendWhenHidden = FALSE)
+    
+    # Make air quality loading_visible available for the conditional panel
+    output$air_loading_visible <- reactive({
+      values$air_loading_visible
+    })
+    outputOptions(output, "air_loading_visible", suspendWhenHidden = FALSE)
+    
+    # Make air quality data_fetched available for the conditional panel
+    output$air_data_fetched <- reactive({
+      values$air_data_fetched
+    })
+    outputOptions(output, "air_data_fetched", suspendWhenHidden = FALSE)
+
+    # Make air quality monitors_found available for the conditional panel
+    output$air_monitors_found <- reactive({
+      values$air_monitors_found
+    })
+    outputOptions(output, "air_monitors_found", suspendWhenHidden = FALSE)
+
+    # ARCHIVED Make weather loading_visible available for the conditional panel
+    #output$weather_loading_visible <- reactive({
+    #  values$weather_loading_visible
+    #})
+    #outputOptions(output, "weather_loading_visible", suspendWhenHidden = FALSE)
+    
+    # Make weather data_fetched available for the conditional panel
+    #output$weather_data_fetched <- reactive({
+    #  values$weather_data_fetched
+    #})
+    #outputOptions(output, "weather_data_fetched", suspendWhenHidden = FALSE)
+
+    # Make iNaturalist loading_visible available for the conditional panel
+    output$inat_loading_visible <- reactive({
+      values$inat_loading_visible
+    })
+    outputOptions(output, "inat_loading_visible", suspendWhenHidden = FALSE)
+
+    # Make iNaturalist data_fetched available for the conditional panel
+    output$inat_data_fetched <- reactive({
+      values$inat_data_fetched
+    })
+    outputOptions(output, "inat_data_fetched", suspendWhenHidden = FALSE)
 
     # ============================================================
     # ExtendedTask for Water Quality API calls (async)
@@ -867,6 +1309,37 @@ server <- function(input, output, session) {
       }, seed = TRUE)
     }) |> bslib::bind_task_button("fetch_data")
 
+    # ============================================================
+    # ExtendedTask for iNaturalist API calls (async)
+    # ============================================================
+    inat_fetch_task <- ExtendedTask$new(function(query, taxon_name, place, quality, maxresults) {
+      future({
+        # Combine user search query with place name for geographic context
+        # (rinat does not have a place_guess input parameter; query is the best available filter)
+        combined_query <- if (!is.null(query) && nchar(query) > 0) {
+          paste(query, place)
+        } else {
+          place
+        }
+        results <- rinat::get_inat_obs(
+          query = combined_query,
+          taxon_name = if (!is.null(taxon_name) && nchar(taxon_name) > 0) taxon_name else NULL,
+          quality = if (!is.null(quality) && quality != "any") quality else NULL,
+          maxresults = maxresults,
+          geo = TRUE
+        )
+        results
+      }, seed = TRUE)
+    }) |> bslib::bind_task_button("fetch_inat_data")
+
+    # Observer for elapsed time display during iNaturalist fetch
+    observe({
+      invalidateLater(1000)
+      if (values$inat_loading_visible && !is.null(values$inat_fetch_start_time)) {
+        elapsed <- round(difftime(Sys.time(), values$inat_fetch_start_time, units = "secs"))
+        values$inat_status <- paste0("Requesting data from iNaturalist... (", elapsed, " seconds)")
+      }
+    })
 
     # Observer for elapsed time display during water quality fetch
     observe({
@@ -1024,6 +1497,306 @@ server <- function(input, output, session) {
       }
     })
 
+    # ============================================================
+    # ExtendedTask for Air Quality Monitor Search (async)
+    # ============================================================
+    air_monitors_task <- ExtendedTask$new(function(state_fips, county_fips, bdate, edate, location) {
+      future({
+        # Set up RAQSAPI credentials in this worker process
+        RAQSAPI::aqs_credentials(
+          username = ifelse(Sys.getenv("AQS_USERNAME") != "", Sys.getenv("AQS_USERNAME"), "test@aqs.api"),
+          key = ifelse(Sys.getenv("AQS_KEY") != "", Sys.getenv("AQS_KEY"), "test")
+        )
+
+        # Query ALL 6 common air quality parameters to find all sites
+        all_params <- c("44201", "88101", "81102", "42101", "42401", "42602")
+
+        # Query monitors for each parameter
+        monitor_list <- list()
+        for (param in all_params) {
+          result <- tryCatch({
+            RAQSAPI::aqs_monitors_by_county(
+              parameter = param,
+              bdate = bdate,
+              edate = edate,
+              stateFIPS = state_fips,
+              countycode = county_fips
+            )
+          }, error = function(e) {
+            NULL
+          })
+          if (!is.null(result)) monitor_list <- c(monitor_list, list(result))
+        }
+
+        all_raw <- dplyr::bind_rows(monitor_list)
+        list(all_raw = all_raw, location = location)
+      }, seed = TRUE)
+    }) |> bslib::bind_task_button("find_air_monitors")
+
+    # Observer for elapsed time display during air quality operations
+    observe({
+      invalidateLater(1000)
+      if (values$air_loading_visible && !is.null(values$air_fetch_start_time) && !is.null(values$air_base_status)) {
+        elapsed <- round(difftime(Sys.time(), values$air_fetch_start_time, units = "secs"))
+        values$air_status <- paste0(values$air_base_status, " (", elapsed, " seconds)")
+      }
+    })
+
+    # Observer for air monitors task completion
+    observeEvent(air_monitors_task$result(), {
+      result <- air_monitors_task$result()
+      all_raw <- result$all_raw
+      location <- result$location
+
+      if (is.null(all_raw) || nrow(all_raw) == 0) {
+        values$air_status <- paste(
+          "No monitoring sites found in", location,
+          "for", input$air_year_selection, ". Try a different year or location."
+        )
+        values$air_loading_visible <- FALSE
+        values$air_fetch_start_time <- NULL
+      values$air_base_status <- NULL
+        showNotification("No monitoring sites found. Try a different year or location.",
+                         type = "warning", duration = 8)
+        return()
+      }
+
+      monitors_clean <- all_raw %>% janitor::clean_names()
+
+      # Summarize which parameters each site has
+      sites_summary <- monitors_clean %>%
+        group_by(state_code, county_code, site_number) %>%
+        summarise(params_available = list(unique(parameter_code)), .groups = "drop") %>%
+        mutate(
+          n_params = sapply(params_available, length),
+          site_id = paste0(county_code, "-", site_number)
+        ) %>%
+        arrange(desc(n_params))
+
+      # Store site-to-params mapping
+      values$air_site_params <- sites_summary %>%
+        select(site_id, params_available)
+
+      # Build display info per site
+      site_details <- monitors_clean %>%
+        select(state_code, county_code, site_number, address, city_name, county_name) %>%
+        distinct() %>%
+        inner_join(
+          sites_summary %>% select(state_code, county_code, site_number, n_params),
+          by = c("state_code", "county_code", "site_number")
+        ) %>%
+        mutate(
+          display_city = ifelse(
+            tolower(trimws(city_name)) %in% c("not in a city", ""),
+            county_name, city_name
+          ),
+          site_label = paste0(site_number, " - ", address, ", ", display_city, " (", n_params, " params)"),
+          site_id = paste0(county_code, "-", site_number)
+        ) %>%
+        arrange(desc(n_params)) %>%
+        distinct(site_id, .keep_all = TRUE)
+
+      values$air_available_monitors <- site_details
+
+      site_choices <- c("Choose a site..." = "", setNames(site_details$site_id, site_details$site_label))
+      updateSelectInput(session, "air_site_selection",
+                        choices = site_choices,
+                        selected = "")
+
+      n_sites <- nrow(site_details)
+      values$air_status <- paste(
+        "Found", n_sites, "monitoring station(s) in", location,
+        "for", input$air_year_selection, ". Select a site below."
+      )
+      values$air_monitors_found <- TRUE
+      values$air_loading_visible <- FALSE
+      values$air_fetch_start_time <- NULL
+      values$air_base_status <- NULL
+
+      showNotification(paste("Found", n_sites, "monitor(s). Select one to add data."),
+                       type = "message", duration = 5)
+    })
+
+    # Observer for air monitors task errors
+    observeEvent(air_monitors_task$status(), {
+      if (air_monitors_task$status() == "error") {
+        err <- air_monitors_task$error()
+        values$air_status <- paste("Error finding monitors:", err$message)
+        showNotification(paste("Error:", err$message), type = "error", duration = 8)
+        values$air_loading_visible <- FALSE
+        values$air_fetch_start_time <- NULL
+      values$air_base_status <- NULL
+      }
+    })
+
+    # ============================================================
+    # ExtendedTask for Air Quality Data Fetch (async)
+    # ============================================================
+    air_data_task <- ExtendedTask$new(function(state_fips, county_code, site_number, params, bdate, edate, site_label) {
+      future({
+        # Set up RAQSAPI credentials in this worker process
+        RAQSAPI::aqs_credentials(
+          username = ifelse(Sys.getenv("AQS_USERNAME") != "", Sys.getenv("AQS_USERNAME"), "test@aqs.api"),
+          key = ifelse(Sys.getenv("AQS_KEY") != "", Sys.getenv("AQS_KEY"), "test")
+        )
+
+        # Fetch data for each selected parameter
+        raw_list <- list()
+        for (param in params) {
+          result <- tryCatch({
+            RAQSAPI::aqs_sampledata_by_site(
+              parameter = param,
+              bdate = bdate,
+              edate = edate,
+              stateFIPS = state_fips,
+              countycode = county_code,
+              sitenum = site_number
+            )
+          }, error = function(e) {
+            NULL
+          })
+          if (!is.null(result) && nrow(result) > 0) {
+            raw_list <- c(raw_list, list(result))
+          }
+        }
+
+        all_raw <- dplyr::bind_rows(raw_list)
+        list(all_raw = all_raw, site_label = site_label, site_id = paste0(county_code, "-", site_number))
+      }, seed = TRUE)
+    }) |> bslib::bind_task_button("fetch_air_data")
+
+    # Observer for air data task completion - full processing logic
+    observeEvent(air_data_task$result(), {
+      result <- air_data_task$result()
+      raw_data <- result$all_raw
+      site_label <- result$site_label
+      site_id <- result$site_id
+
+      if (is.null(raw_data) || nrow(raw_data) == 0) {
+        values$air_status <- paste(
+          "No data found for", site_label, "in", input$air_year_selection
+        )
+        values$air_loading_visible <- FALSE
+        values$air_fetch_start_time <- NULL
+      values$air_base_status <- NULL
+        showNotification("No data found. Try a different site, parameters, or year.",
+                         type = "warning", duration = 8)
+        return()
+      }
+
+      values$air_status <- paste("Processing", nrow(raw_data), "records...")
+
+      aq_clean <- raw_data %>% janitor::clean_names()
+
+      # Build combined datetime field and keep site identifiers
+      aq_tidy <- aq_clean %>%
+        mutate(
+          date_str = format(as.Date(date_local), "%Y-%m-%d"),
+          datetime_local = as.POSIXct(paste(date_str, time_local), format = "%Y-%m-%d %H:%M"),
+          site_id = !!site_id,
+          site_label = !!site_label
+        ) %>%
+        select(site_id, site_label, site_number, county, latitude, longitude,
+               datetime_local, parameter_code, sample_measurement) %>%
+        filter(!is.na(sample_measurement))
+
+      # Check if any valid measurements remain after filtering out NAs
+      if (nrow(aq_tidy) == 0) {
+        values$air_status <- paste(
+          "No valid measurements for", site_label, "in", input$air_year_selection,
+          "- all values were NA or flagged"
+        )
+        values$air_loading_visible <- FALSE
+        values$air_fetch_start_time <- NULL
+      values$air_base_status <- NULL
+        showNotification("No valid measurements found. The data may be flagged as invalid. Try a different site or year.",
+                         type = "warning", duration = 8)
+        return()
+      }
+
+      # Pivot to wide: one row per datetime, one column per parameter code
+      aq_wide <- aq_tidy %>%
+        pivot_wider(
+          id_cols = c(site_id, site_label, site_number, county, latitude, longitude, datetime_local),
+          names_from = parameter_code,
+          values_from = sample_measurement,
+          values_fn = mean
+        )
+
+      # Calculate composite AQI per row using parameter-code columns
+      param_code_cols <- intersect(names(aq_wide), names(aqi_breakpoints))
+      if (length(param_code_cols) > 0) {
+        aq_wide$composite_aqi <- apply(
+          aq_wide[, param_code_cols, drop = FALSE], 1,
+          function(row) {
+            conc_vec <- as.numeric(row)
+            names(conc_vec) <- param_code_cols
+            conc_vec <- conc_vec[!is.na(conc_vec)]
+            if (length(conc_vec) == 0) return(NA_real_)
+            calculate_composite_aqi(conc_vec)
+          }
+        )
+      }
+
+      # Rename parameter-code columns to human-readable display names
+      for (code in names(air_params)) {
+        if (code %in% names(aq_wide)) {
+          names(aq_wide)[names(aq_wide) == code] <- air_params[[code]]
+        }
+      }
+
+      # Format datetime and reorder columns with site info first
+      fetch_location <- paste(input$air_county_selection, input$air_state_selection, sep = ", ")
+
+      aq_wide_new <- aq_wide %>%
+        mutate(
+          datetime_local = as.character(format(datetime_local, "%Y-%m-%d %H:%M")),
+          location = fetch_location
+        ) %>%
+        select(site_number, site_label, county, latitude, longitude, location,
+               datetime_local, everything(), -site_id)
+
+      # APPEND to existing data (if any)
+      if (is.null(values$air_wide_data) || nrow(values$air_wide_data) == 0) {
+        values$air_wide_data <- aq_wide_new
+        values$air_long_data <- aq_tidy
+      } else {
+        values$air_wide_data <- bind_rows(values$air_wide_data, aq_wide_new)
+        values$air_long_data <- bind_rows(values$air_long_data, aq_tidy)
+      }
+
+      values$air_data_fetched <- TRUE
+
+      # Show cumulative total with location and site info
+      total_rows <- nrow(values$air_wide_data)
+      unique_locations <- length(unique(values$air_wide_data$location))
+      unique_sites <- length(unique(values$air_wide_data$site_number))
+
+      values$air_status <- paste(
+        "Added", nrow(aq_wide_new), "records from", site_label, "-",
+        "Total:", total_rows, "records from", unique_sites, "site(s) across", unique_locations, "location(s)"
+      )
+      values$air_loading_visible <- FALSE
+      values$air_fetch_start_time <- NULL
+      values$air_base_status <- NULL
+
+      showNotification(
+        paste("Added", nrow(aq_wide_new), "records! Total:", total_rows, "records from", unique_sites, "site(s)"),
+        type = "message", duration = 5
+      )
+    })
+
+    # Observer for air data task errors
+    observeEvent(air_data_task$status(), {
+      if (air_data_task$status() == "error") {
+        err <- air_data_task$error()
+        values$air_status <- paste("Error fetching air data:", err$message)
+        showNotification(paste("Error:", err$message), type = "error", duration = 8)
+        values$air_loading_visible <- FALSE
+        values$air_fetch_start_time <- NULL
+      values$air_base_status <- NULL
+      }
+    })
 
     # Update county choices when state changes
     observeEvent(input$state_selection, {
@@ -1213,9 +1986,9 @@ server <- function(input, output, session) {
                         selected = character(0))
       updateSliderInput(session, "year_selection", value = c(2023, 2025))
       updateCheckboxGroupInput(session, "parameters_primary",
-                               selected = c("pH", "Turbidity", "Temperature", "Dissolved oxygen", "Escherichia coli"))
+                               selected = c("pH", "Turbidity"))
       updateCheckboxGroupInput(session, "parameters_additional",
-                               selected = character(0))
+                               selected = c("Nitrate"))
       updateSelectInput(session, "site_selection", 
                         choices = c("All sites" = "all"),
                         selected = "all")
@@ -1395,6 +2168,560 @@ server <- function(input, output, session) {
         }
       }
     })
+
+    # =============================================================================
+    # AIR QUALITY SERVER LOGIC
+    # =============================================================================
+
+    # Update county choices when air quality state changes
+    observeEvent(input$air_state_selection, {
+      if (input$air_state_selection != "") {
+        # Get state FIPS code
+        state_info <- states_df[states_df$state_name == input$air_state_selection, ]
+        
+        if (nrow(state_info) > 0) {
+          # Filter counties for this state
+          counties_for_state <- fips_clean %>%
+            filter(state_fips == state_info$state_fips) %>%
+            arrange(county_name)
+          
+          county_choices <- setNames(counties_for_state$county_display, counties_for_state$county_display)
+
+          # Set default to Knox County if Tennessee is selected
+          default_county <- if(input$air_state_selection == "Tennessee") "Knox County" else character(0)
+
+        } else {
+          county_choices <- character(0)
+          default_county <- character(0)
+        }
+
+        updateSelectInput(session, "air_county_selection",
+                          choices = c("Choose a county..." = "", county_choices),
+                          selected = default_county)
+      }
+    })
+
+    # Step 1: Find Sites button - now uses ExtendedTask for async API calls
+    observeEvent(input$find_air_monitors, {
+      if (input$air_state_selection == "" || input$air_county_selection == "") {
+        showNotification("Please select both state and county", type = "error", duration = 5)
+        return()
+      }
+
+      # Reset monitor list (but not data - we want to append)
+      values$air_monitors_found <- FALSE
+      values$air_available_monitors <- NULL
+      values$air_site_params <- NULL
+
+      county_info <- fips_clean %>%
+        filter(state_name == input$air_state_selection,
+               county_display == input$air_county_selection)
+
+      if (nrow(county_info) == 0) {
+        showNotification("County not found in database.", type = "error", duration = 5)
+        return()
+      }
+
+      values$air_current_state_fips <- county_info$state_fips[1]
+      values$air_current_county_fips <- county_info$county_fips[1]
+      values$air_current_location <- paste(input$air_county_selection, input$air_state_selection, sep = ", ")
+
+      bdate <- as.Date(paste0(input$air_year_selection, "-01-01"))
+      edate <- as.Date(paste0(input$air_year_selection, "-12-31"))
+
+      # Show loading indicator and start timer
+      values$air_loading_visible <- TRUE
+      values$air_fetch_start_time <- Sys.time()
+      values$air_base_status <- "Searching for monitoring sites..."
+      values$air_status <- paste0(values$air_base_status, " (0 seconds)")
+
+      # Invoke the async task - UI will remain responsive
+      air_monitors_task$invoke(
+        county_info$state_fips[1],
+        county_info$county_fips[1],
+        bdate,
+        edate,
+        values$air_current_location
+      )
+    })
+
+    # NOTE: fetch_air_data() function removed - logic moved to ExtendedTask observers above
+
+    # Trigger Step 2 on button click - now uses ExtendedTask for async API calls
+    observeEvent(input$fetch_air_data, {
+      if (is.null(input$air_site_selection) || input$air_site_selection == "") {
+        showNotification("Please find and select a monitoring site first (Step 1)", type = "error", duration = 5)
+        return()
+      }
+      if (is.null(input$air_parameters) || length(input$air_parameters) == 0) {
+        showNotification("Please select at least one parameter to fetch", type = "error", duration = 5)
+        return()
+      }
+
+      site_id <- input$air_site_selection
+      params <- input$air_parameters
+      bdate <- as.Date(paste0(input$air_year_selection, "-01-01"))
+      edate <- as.Date(paste0(input$air_year_selection, "-12-31"))
+
+      # Parse site_id: format is "county_code-site_number"
+      site_parts <- strsplit(site_id, "-")[[1]]
+      county_code <- site_parts[1]
+      site_number <- site_parts[2]
+
+      # Get site label
+      site_info <- values$air_available_monitors %>%
+        filter(site_id == !!site_id)
+      site_label <- if (nrow(site_info) > 0) site_info$site_label[1] else site_id
+
+      # Show loading indicator and start timer
+      values$air_loading_visible <- TRUE
+      values$air_fetch_start_time <- Sys.time()
+      values$air_base_status <- paste0("Fetching ", input$air_year_selection, " data for ", site_label, "...")
+      values$air_status <- paste0(values$air_base_status, " (0 seconds)")
+
+      # Invoke the async task
+      air_data_task$invoke(
+        values$air_current_state_fips,
+        county_code,
+        site_number,
+        params,
+        bdate,
+        edate,
+        site_label
+      )
+    })
+
+    # Air quality refresh/clear
+    observeEvent(input$refresh_air_data, {
+      values$air_wide_data        <- NULL
+      values$air_long_data        <- NULL
+      values$air_data_fetched     <- FALSE
+      values$air_monitors_found   <- FALSE
+      values$air_status           <- "Ready to fetch air quality data..."
+      values$air_current_state_fips <- ""
+      values$air_current_county_fips <- ""
+      values$air_current_location <- ""
+      values$air_loading_visible  <- FALSE
+      values$air_available_monitors <- NULL
+      values$air_site_params      <- NULL
+
+      updateSelectInput(session, "air_state_selection", selected = "Tennessee")
+      updateSelectInput(session, "air_county_selection",
+                        choices = {
+                          tn <- fips_clean[fips_clean$state_name == "Tennessee", "county_display", drop = TRUE]
+                          c("Choose a county..." = "", setNames(tn, tn))
+                        },
+                        selected = "Knox County")
+      updateSelectInput(session, "air_year_selection", selected = 2024)
+      updateSelectInput(session, "air_site_selection",
+                        choices = c("Choose a site..." = ""), selected = "")
+
+      showNotification("Air quality data cleared. All selections reset.", type = "message", duration = 3)
+    })
+
+    # Air quality status output
+    output$air_status_text <- renderText({
+      values$air_status
+    })
+
+    # Dynamic parameter checkboxes based on selected site
+    output$air_parameters_ui <- renderUI({
+      req(input$air_site_selection)
+      req(values$air_site_params)
+
+      site_id <- input$air_site_selection
+      site_params <- values$air_site_params %>%
+        filter(site_id == !!site_id)
+
+      if (nrow(site_params) == 0) {
+        return(p("No parameters available for this site."))
+      }
+
+      available_params <- unlist(site_params$params_available[1])
+
+      # Build choices with human-readable names
+      param_labels <- c(
+        "44201" = "Ozone (O3)",
+        "88101" = "PM2.5",
+        "81102" = "PM10",
+        "42101" = "Carbon Monoxide (CO)",
+        "42401" = "Sulfur Dioxide (SO2)",
+        "42602" = "Nitrogen Dioxide (NO2)"
+      )
+
+      choices <- setNames(available_params, param_labels[available_params])
+
+      checkboxGroupInput("air_parameters", NULL,
+                         choices = choices,
+                         selected = available_params,  # Pre-select all available
+                         inline = TRUE)
+    })
+
+    # Air quality data preview
+    output$air_preview_wide <- DT::renderDataTable({
+      data <- values$air_wide_data
+      if (!is.null(data)) {
+        DT::datatable(data, options = list(scrollX = TRUE, pageLength = 10))
+      }
+    })
+
+    # Air quality CSV download
+    output$download_air_data <- downloadHandler(
+      filename = function() {
+        data <- values$air_wide_data
+        if (is.null(data) || nrow(data) == 0) {
+          return(paste0("air_quality_", Sys.Date(), ".csv"))
+        }
+
+        # Extract year range from data
+        years <- unique(substr(data$datetime_local, 1, 4))
+        year_range <- if(length(years) == 1) {
+          years[1]
+        } else {
+          paste(min(years), max(years), sep = "-")
+        }
+
+        # Count unique sites
+        n_sites <- length(unique(data$site_number))
+        n_records <- nrow(data)
+
+        paste0("air_quality_", n_sites, "sites_", year_range, "_", n_records, "records_", Sys.Date(), ".csv")
+      },
+      content = function(file) {
+        data <- values$air_wide_data
+        if (!is.null(data)) {
+          write_csv(data, file)
+        }
+      }
+    )
+
+    # =============================================================================
+    # CODAP EXPORT SERVER LOGIC - Air Quality
+    # =============================================================================
+
+    observeEvent(input$send_air_to_codap, {
+      data <- values$air_wide_data
+
+      if (is.null(data) || nrow(data) == 0) {
+        showNotification("No data available to send to CODAP. Please fetch air quality data first.",
+                         type = "error", duration = 5)
+        return()
+      }
+
+      dataset_name <- "AirQualityData"
+
+      # Convert datetime column to character for JSON serialization
+      data_export <- data %>%
+        mutate(datetime_local = as.character(datetime_local))
+
+      attributes <- lapply(names(data_export), function(col_name) {
+        list(name = col_name, title = col_name)
+      })
+
+      cases <- lapply(seq_len(nrow(data_export)), function(i) {
+        row_data <- as.list(data_export[i, ])
+        row_data <- lapply(row_data, function(x) {
+          if (is.null(x) || (length(x) == 1 && is.na(x))) return(NULL) else return(x)
+        })
+        return(row_data)
+      })
+
+      session$sendCustomMessage(
+        type = "sendToCODAP",
+        message = list(
+          datasetName = dataset_name,
+          attributes  = attributes,
+          cases       = cases
+        )
+      )
+
+      showNotification(
+        paste("Sending", nrow(data_export), "rows to CODAP as dataset:", dataset_name),
+        type = "message",
+        duration = 3
+      )
+    })
+
+    # =============================================================================
+    # BIODIVERSITY (iNATURALIST) SERVER LOGIC
+    # =============================================================================
+
+    # Status text output
+    output$inat_status_text <- renderText({
+      values$inat_status
+    })
+
+    # Update iNaturalist county choices when state changes
+    observeEvent(input$inat_state_selection, {
+      if (input$inat_state_selection != "") {
+        state_info <- states_df[states_df$state_name == input$inat_state_selection, ]
+
+        if (nrow(state_info) > 0) {
+          counties_for_state <- fips_clean %>%
+            filter(state_fips == state_info$state_fips) %>%
+            arrange(county_name)
+
+          county_choices <- setNames(counties_for_state$county_display, counties_for_state$county_display)
+          default_county <- if(input$inat_state_selection == "Tennessee") "Knox County" else character(0)
+        } else {
+          county_choices <- c()
+          default_county <- character(0)
+        }
+
+        updateSelectizeInput(session, "inat_county_selection", choices = county_choices, selected = default_county)
+      }
+    })
+
+    # Fetch biodiversity data
+    observeEvent(input$fetch_inat_data, {
+
+      # Validate inputs
+      if (input$inat_state_selection == "" || is.null(input$inat_county_selection) || length(input$inat_county_selection) == 0) {
+        showNotification("Please select state and at least one county", type = "error", duration = 5)
+        return()
+      }
+
+      # Build place name for iNaturalist search
+      place_name <- if (length(input$inat_county_selection) == 1) {
+        paste(input$inat_county_selection, input$inat_state_selection, sep = ", ")
+      } else {
+        paste(input$inat_state_selection)
+      }
+
+      # Warn user if multiple counties selected (iNaturalist text search falls back to state-wide)
+      if (length(input$inat_county_selection) > 1) {
+        showNotification(
+          paste("Multiple counties selected: searching all of", input$inat_state_selection,
+                "instead. iNaturalist does not support multi-county filtering directly."),
+          type = "warning", duration = 8
+        )
+      }
+
+      # Build location display
+      values$inat_current_location <- if (length(input$inat_county_selection) == 1) {
+        paste(input$inat_county_selection, input$inat_state_selection, sep = ", ")
+      } else {
+        paste0(paste(input$inat_county_selection, collapse = ", "), ", ", input$inat_state_selection)
+      }
+
+      # Save state for use in async result handler (avoid stale input references)
+      values$inat_fetched_state <- input$inat_state_selection
+
+      # Get taxon name from selection
+      taxon_name <- inat_taxon_groups[input$inat_taxon_group]
+
+      # Get search query
+      search_query <- input$inat_taxon_search
+
+      # Get quality grade
+      quality <- input$inat_quality_grade
+
+      # Show loading indicator and start timer
+      values$inat_loading_visible <- TRUE
+      values$inat_fetch_start_time <- Sys.time()
+      values$inat_status <- "Requesting data from iNaturalist... (0 seconds)"
+
+      # Invoke the async task
+      inat_fetch_task$invoke(search_query, taxon_name, place_name, quality, input$inat_max_results)
+    })
+
+    # Handle iNaturalist fetch results
+    observeEvent(inat_fetch_task$result(), {
+      result <- inat_fetch_task$result()
+
+      if (is.null(result) || nrow(result) == 0) {
+        values$inat_status <- paste0(
+          "No biodiversity observations found for ", values$inat_current_location, ".\n\n",
+          "This might mean:\n",
+          "- Few iNaturalist users have recorded observations in this area\n",
+          "- No observations match your taxon or date filters\n\n",
+          "Try: Select a different county, expand your date range, change taxon group, or select 'All' quality grade."
+        )
+        showNotification(
+          paste("No observations found for", values$inat_current_location, "- try different filters"),
+          type = "warning", duration = 8
+        )
+        values$inat_loading_visible <- FALSE
+        values$inat_fetch_start_time <- NULL
+        return()
+      }
+
+      # Filter by date range
+      result$datetime <- as.Date(result$datetime)
+      date_range <- input$inat_date_range
+      result <- result %>%
+        filter(datetime >= date_range[1] & datetime <= date_range[2])
+
+      if (nrow(result) == 0) {
+        values$inat_status <- paste0(
+          "Observations were found but none fell within your selected date range.\n",
+          "Try expanding your date range."
+        )
+        showNotification("No observations in selected date range", type = "warning", duration = 5)
+        values$inat_loading_visible <- FALSE
+        values$inat_fetch_start_time <- NULL
+        return()
+      }
+
+      # Map iconic taxon names to friendly names
+      taxon_name_map <- setNames(names(inat_taxon_groups), inat_taxon_groups)
+
+      # Select and rename student-friendly columns
+      inat_clean <- result %>%
+        transmute(
+          common_name = common_name,
+          scientific_name = scientific_name,
+          taxon_group = ifelse(iconic_taxon_name %in% names(taxon_name_map),
+                               taxon_name_map[iconic_taxon_name],
+                               iconic_taxon_name),
+          date = as.character(datetime),
+          location = place_guess,
+          latitude = as.numeric(latitude),
+          longitude = as.numeric(longitude),
+          quality_grade = quality_grade,
+          observer = user_login,
+          observation_url = url,
+          state = values$inat_fetched_state,
+          county = values$inat_current_location
+        )
+
+      values$inat_data <- inat_clean
+      values$inat_data_fetched <- TRUE
+
+      values$inat_status <- paste("Found", nrow(inat_clean), "observations from",
+                                   values$inat_current_location, "!",
+                                   length(unique(inat_clean$scientific_name)), "unique species.",
+                                   "Date range:", min(inat_clean$date),
+                                   "to", max(inat_clean$date))
+
+      showNotification(
+        paste("Found", nrow(inat_clean), "biodiversity observations!"),
+        type = "message", duration = 5
+      )
+
+      values$inat_loading_visible <- FALSE
+      values$inat_fetch_start_time <- NULL
+    })
+
+    # Handle iNaturalist fetch errors
+    observeEvent(inat_fetch_task$status(), {
+      if (inat_fetch_task$status() == "error") {
+        err <- inat_fetch_task$error()
+        # rinat throws an error (not empty df) when zero results are found
+        if (grepl("zero results", err$message, fixed = TRUE)) {
+          values$inat_status <- paste0(
+            "No biodiversity observations found for ", values$inat_current_location, ".\n\n",
+            "This might mean:\n",
+            "- Few iNaturalist users have recorded observations in this area\n",
+            "- No observations match your taxon or date filters\n\n",
+            "Try: Select a different county, expand your date range, change taxon group, or select 'All' quality grade."
+          )
+          showNotification(
+            paste("No observations found for", values$inat_current_location, "- try different filters"),
+            type = "warning", duration = 8
+          )
+        } else {
+          values$inat_status <- paste("Error fetching biodiversity data:", err$message)
+          showNotification(paste("Error:", err$message), type = "error", duration = 8)
+        }
+        values$inat_loading_visible <- FALSE
+        values$inat_fetch_start_time <- NULL
+      }
+    })
+
+    # Refresh/Clear iNaturalist data
+    observeEvent(input$refresh_inat_data, {
+      values$inat_data <- NULL
+      values$inat_data_fetched <- FALSE
+      values$inat_status <- "Ready to fetch biodiversity data..."
+      values$inat_current_location <- ""
+      values$inat_loading_visible <- FALSE
+      values$inat_fetch_start_time <- NULL
+
+      updateSelectInput(session, "inat_state_selection", selected = "")
+      updateSelectizeInput(session, "inat_county_selection",
+                          choices = c("Choose county/counties..." = ""),
+                          selected = character(0))
+      updateSelectInput(session, "inat_taxon_group", selected = "All Groups")
+      updateTextInput(session, "inat_taxon_search", value = "")
+      updateDateRangeInput(session, "inat_date_range",
+                           start = Sys.Date() - 365, end = Sys.Date())
+      updateSelectInput(session, "inat_quality_grade", selected = "research")
+      updateSliderInput(session, "inat_max_results", value = 200)
+    })
+
+    # iNaturalist data table preview
+    output$inat_preview <- DT::renderDataTable({
+      req(values$inat_data)
+      display_data <- values$inat_data %>%
+        select(-any_of(c("observation_url")))
+      DT::datatable(display_data,
+                    options = list(scrollX = TRUE, pageLength = 10),
+                    rownames = FALSE)
+    })
+
+    # CSV download for iNaturalist data
+    output$download_inat_data <- downloadHandler(
+      filename = function() {
+        location_safe <- gsub("[^A-Za-z0-9]", "_", values$inat_current_location)
+        paste0("biodiversity_", location_safe, "_", Sys.Date(), ".csv")
+      },
+      content = function(file) {
+        if (!is.null(values$inat_data)) {
+          write_csv(values$inat_data, file)
+        }
+      }
+    )
+
+    # =============================================================================
+    # CODAP EXPORT SERVER LOGIC - Biodiversity
+    # =============================================================================
+
+    observeEvent(input$send_inat_to_codap, {
+      data <- values$inat_data
+
+      if (is.null(data) || nrow(data) == 0) {
+        showNotification("No data available to send to CODAP. Please fetch biodiversity data first.",
+                         type = "error", duration = 5)
+        return()
+      }
+
+      dataset_name <- "BiodiversityData"
+
+      # Convert data frame columns into CODAP attributes format
+      attributes <- lapply(names(data), function(col_name) {
+        list(
+          name = col_name,
+          title = col_name
+        )
+      })
+
+      # Convert data frame rows into a list of cases
+      cases <- lapply(seq_len(nrow(data)), function(i) {
+        row_data <- as.list(data[i, ])
+        row_data <- lapply(row_data, function(x) {
+          if (is.na(x)) return(NULL) else return(x)
+        })
+        return(row_data)
+      })
+
+      session$sendCustomMessage(
+        type = "sendToCODAP",
+        message = list(
+          datasetName = dataset_name,
+          attributes = attributes,
+          cases = cases
+        )
+      )
+
+      showNotification(
+        paste("Sending", nrow(data), "rows to CODAP as dataset:", dataset_name),
+        type = "message",
+        duration = 3
+      )
+    })
+
+    # Handle CODAP export status for biodiversity (uses same JS handler as water quality)
 
     # =============================================================================
     ## ARCHIVED: WEATHER & CLIMATE SERVER LOGIC - Focusing on Water Quality first

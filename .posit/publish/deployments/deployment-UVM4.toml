@@ -10,12 +10,14 @@ id = "019e038f-de68-97e9-f1fd-27ea35fe0e32"
 dashboard_url = "https://connect.posit.cloud/joshuafrosenberg/content/019e038f-de68-97e9-f1fd-27ea35fe0e32"
 direct_url = "https://019e038f-de68-97e9-f1fd-27ea35fe0e32.share.connect.posit.cloud"
 logs_url = "https://connect.posit.cloud/joshuafrosenberg/content/019e038f-de68-97e9-f1fd-27ea35fe0e32/history"
-deployed_at = "2026-05-18T01:54:45.259Z"
-bundle_id = "019e38ca-cf18-21da-987b-089c2fb64864"
+deployed_at = "2026-05-18T11:44:47.368Z"
+bundle_id = "019e3ae6-f30f-54d0-abe2-6f68f50e5bd5"
 files = [
     ".posit/publish/credible-local-data-MNQM.toml",
     ".posit/publish/deployments/deployment-UVM4.toml",
     "app.R",
+    "credible-logo.png",
+    "fips-xwalk.csv",
 ]
 
 [connect_cloud]
@@ -28,6 +30,8 @@ entrypoint = "app.R"
 title = "credible-local-data"
 files = [
     "/app.R",
+    "/fips-xwalk.csv",
+    "/credible-logo.png",
     "/.posit/publish/credible-local-data-MNQM.toml",
     "/.posit/publish/deployments/deployment-UVM4.toml",
 ]
@@ -5202,9 +5206,4 @@ needs_compilation = "yes"
 author = "Hadley Wickham [cre] (ORCID: <https://orcid.org/0000-0003-4757-117X>), Shawn Garbett [ctb] (ORCID: <https://orcid.org/0000-0003-4079-5621>), Jeremy Stephens [aut, ctb], Kirill Simonov [aut], Yihui Xie [ctb] (ORCID: <https://orcid.org/0000-0003-0645-5666>), Zhuoer Dong [ctb], Jeffrey Horner [ctb], reikoch [ctb], Will Beasley [ctb] (ORCID: <https://orcid.org/0000-0002-5613-5006>), Brendan O'Connor [ctb], Michael Quinn [ctb], Charlie Gao [ctb], Gregory R. Warnes [ctb], Zhian N. Kamvar [ctb]"
 maintainer = "Hadley Wickham <hadley@posit.co>"
 repository = "CRAN"
-
-[deployment_error]
-code = "deployFailed"
-message = "Runtime error: Unable to start the app due to a runtime error. Please check the logs for more information."
-operation = "publish"
 

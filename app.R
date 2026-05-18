@@ -98,15 +98,18 @@ body, .content-wrapper, .main-sidebar, .main-header {
    Accent:    #4A9BAA  (status bar, spinner, links)
 */
 
-/* App header */
+/* App header — hide the empty navbar bar; keep only the title bar */
 .skin-blue .main-header .navbar {
-  background-color: #3B7A8C !important;
+  display: none !important;
 }
+.skin-blue .main-header,
 .skin-blue .main-header .logo {
   background-color: #2A5F70 !important;
 }
-.skin-blue .main-header .logo:hover {
-  background-color: #1F4A58 !important;
+.skin-blue .main-header .logo {
+  width: 100% !important;
+  float: none !important;
+  text-align: center !important;
 }
 
 /* All box headers — same color, every box type */
@@ -158,13 +161,12 @@ body, .content-wrapper, .main-sidebar, .main-header {
   color: white !important;
 }
 
-/* Status text */
+/* Status text — compact, sits beside the Get Water Data button */
 #status_text {
-  background-color: #f8f9fa;
-  border-left: 4px solid #4A9BAA;
-  padding: 15px;
-  border-radius: 4px;
-  font-family: monospace;
+  color: #2A5F70;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
 }
 
 /* Loading */
@@ -498,14 +500,14 @@ ui <- dashboardPage(
           box(
             title = "Step 1 · Choose a location",
             status = "primary", solidHeader = TRUE, width = 12,
-            fluidRow(
-              column(5,
+            div(style = "display: flex; gap: 16px; flex-wrap: wrap;",
+              div(style = "flex: 1 1 40%; min-width: 150px;",
                 selectInput("state_selection", "State",
                   choices = c("Choose a state..." = "",
                               setNames(states_df$state_name, states_df$state_name)),
-                  selected = "Tennessee")
+                  selected = "Tennessee", width = "100%")
               ),
-              column(7,
+              div(style = "flex: 1 1 55%; min-width: 200px;",
                 selectizeInput("county_selection", "County (pick one or more)",
                   choices = {
                     tn <- fips_clean[fips_clean$state_name == "Tennessee", "county_display", drop = TRUE]
@@ -513,6 +515,7 @@ ui <- dashboardPage(
                   },
                   selected = "Knox County",
                   multiple = TRUE,
+                  width = "100%",
                   options = list(placeholder = "Select one or more counties"))
               )
             )
@@ -651,12 +654,12 @@ ui <- dashboardPage(
           box(
             title = "Step 3 · Get your data",
             status = "primary", solidHeader = TRUE, width = 12,
-            div(style = "margin-bottom: 10px;",
+            div(style = "display: flex; align-items: center; gap: 16px; flex-wrap: wrap;",
               actionButton("fetch_data", "Get Water Data",
-                class = "btn-primary btn-lg", icon = icon("download"))
-            ),
-            div(style = "margin-top: 14px;",
-              verbatimTextOutput("status_text")
+                class = "btn-primary btn-lg", icon = icon("download")),
+              div(style = "flex: 1 1 220px; min-width: 200px;",
+                textOutput("status_text")
+              )
             )
           )
         ),
@@ -932,14 +935,23 @@ server <- function(input, output, session) {
       # Create long format
       values$long_data <- wq_join
 
-      # Create wide format
+      # Create wide format. Drop `unit` BEFORE pivoting so it is not treated as
+      # an id column (different parameters have different units, which would
+      # otherwise split each parameter onto its own row). Use values_fn to
+      # average multiple same-day samples so the parameter columns stay atomic
+      # numeric instead of becoming list-columns.
       wq_wide <- wq_join %>%
-        pivot_wider(names_from = parameter, values_from = value) %>%
+        select(-unit) %>%
+        pivot_wider(
+          names_from = parameter,
+          values_from = value,
+          values_fn = function(x) mean(x, na.rm = TRUE)
+        ) %>%
         mutate(
           state = input$state_selection,
           county = location
         ) %>%
-        select(state, county, site_id, site_name, lat, lon, date, everything(), -unit)
+        select(state, county, site_id, site_name, lat, lon, date, everything())
 
       values$wide_data <- wq_wide
 
@@ -1201,7 +1213,7 @@ server <- function(input, output, session) {
                 input$time_aggregation == "year" ~ format(date, "%Y")
               )
             ) %>%
-            group_by(site_id, site_name, time_period) %>%
+            group_by(state, county, site_id, site_name, time_period) %>%
             summarise(
               across(where(is.numeric), ~mean(.x, na.rm = TRUE)),
               n_measurements = n(),
@@ -1209,7 +1221,7 @@ server <- function(input, output, session) {
               .groups = "drop"
             ) %>%
             rename(date = time_period) %>%
-            select(site_id, site_name, date, everything())
+            select(state, county, site_id, site_name, date, everything())
         }
 
         return(data)
@@ -1221,7 +1233,11 @@ server <- function(input, output, session) {
       data <- filtered_wide_data()
       req(data)
       display_data <- data %>% select(-any_of(c("site_id", "row_id")))
-      DT::datatable(display_data, options = list(scrollX = TRUE, pageLength = 5))
+      DT::datatable(display_data, options = list(
+        scrollX = TRUE,
+        pageLength = 3,
+        lengthMenu = list(c(3, 5, 10, 25, -1), c("3", "5", "10", "25", "All"))
+      ))
     })
     
     # Download handler

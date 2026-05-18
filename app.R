@@ -169,6 +169,43 @@ body, .content-wrapper, .main-sidebar, .main-header {
   line-height: 1.4;
 }
 
+/* Parameter info tooltip (the i icons) — instant, works inside the CODAP iframe */
+.wq-tip {
+  position: relative;
+  color: #3B7A8C;
+  cursor: help;
+}
+.wq-tip:hover::after {
+  content: attr(data-tip);
+  position: absolute;
+  left: 0;
+  bottom: 135%;
+  width: 300px;
+  max-width: 80vw;
+  background: #2A5F70;
+  color: #fff;
+  padding: 9px 11px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.4;
+  white-space: normal;
+  text-align: left;
+  z-index: 10000;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.3);
+  pointer-events: none;
+}
+.wq-tip:hover::before {
+  content: '';
+  position: absolute;
+  left: 12px;
+  bottom: 123%;
+  border: 6px solid transparent;
+  border-top-color: #2A5F70;
+  z-index: 10000;
+  pointer-events: none;
+}
+
 /* Loading */
 .loading-container {
   text-align: center;
@@ -536,8 +573,9 @@ ui <- dashboardPage(
                   "pH ",
                   tags$span(
                     icon("info-circle"),
-                    title = "EPA pH fact sheet: pH measures the hydrogen ion balance of water and affects aquatic life. Most waters that support aquatic life fall between pH 6.5 and 9.0.",
-                    style = "color: #3c8dbc; cursor: help; margin-left: 4px;"
+                    class = "wq-tip",
+                    `data-tip` = "EPA pH fact sheet: pH measures the hydrogen ion balance of water and affects aquatic life. Most waters that support aquatic life fall between pH 6.5 and 9.0.",
+                    style = "margin-left: 4px;"
                   ),
                   tags$a(
                     icon("external-link"),
@@ -551,8 +589,9 @@ ui <- dashboardPage(
                   "Turbidity ",
                   tags$span(
                     icon("info-circle"),
-                    title = "EPA turbidity fact sheet: Settleable and suspended solids should not reduce the depth of the compensation point for photosynthetic activity by more than 10 percent from the seasonally established norm for aquatic life.",
-                    style = "color: #3c8dbc; cursor: help; margin-left: 4px;"
+                    class = "wq-tip",
+                    `data-tip` = "EPA turbidity fact sheet: Settleable and suspended solids should not reduce the depth of the compensation point for photosynthetic activity by more than 10 percent from the seasonally established norm for aquatic life.",
+                    style = "margin-left: 4px;"
                   ),
                   tags$a(
                     icon("external-link"),
@@ -566,8 +605,9 @@ ui <- dashboardPage(
                   "Temperature ",
                   tags$span(
                     icon("info-circle"),
-                    title = "EPA temperature fact sheet: Water temperature shapes habitat quality, organism metabolism, and how much dissolved oxygen water can hold.",
-                    style = "color: #3c8dbc; cursor: help; margin-left: 4px;"
+                    class = "wq-tip",
+                    `data-tip` = "EPA temperature fact sheet: Water temperature shapes habitat quality, organism metabolism, and how much dissolved oxygen water can hold.",
+                    style = "margin-left: 4px;"
                   ),
                   tags$a(
                     icon("external-link"),
@@ -581,8 +621,9 @@ ui <- dashboardPage(
                   "Dissolved oxygen ",
                   tags$span(
                     icon("info-circle"),
-                    title = "EPA dissolved oxygen fact sheet: Dissolved oxygen is essential for fish and aquatic organisms, and low concentrations can stress or kill aquatic life.",
-                    style = "color: #3c8dbc; cursor: help; margin-left: 4px;"
+                    class = "wq-tip",
+                    `data-tip` = "EPA dissolved oxygen fact sheet: Dissolved oxygen is essential for fish and aquatic organisms, and low concentrations can stress or kill aquatic life.",
+                    style = "margin-left: 4px;"
                   ),
                   tags$a(
                     icon("external-link"),
@@ -596,8 +637,9 @@ ui <- dashboardPage(
                   "E. coli ",
                   tags$span(
                     icon("info-circle"),
-                    title = "EPA E. coli fact sheet: Geometric mean of 126 cfu/100 mL and statistical threshold value (STV) of 410 cfu/100 mL for recreational waters. E. coli indicates fecal contamination.",
-                    style = "color: #3c8dbc; cursor: help; margin-left: 4px;"
+                    class = "wq-tip",
+                    `data-tip` = "EPA E. coli fact sheet: Geometric mean of 126 cfu/100 mL and statistical threshold value (STV) of 410 cfu/100 mL for recreational waters. E. coli indicates fecal contamination.",
+                    style = "margin-left: 4px;"
                   ),
                   tags$a(
                     icon("external-link"),
@@ -704,9 +746,8 @@ ui <- dashboardPage(
 
           fluidRow(
             box(
-              title = "Your data", status = "primary", solidHeader = TRUE, width = 12,
-              DT::dataTableOutput("preview_wide"),
-              div(style = "margin-top: 15px;",
+              title = "Send your data", status = "primary", solidHeader = TRUE, width = 12,
+              div(style = "margin-top: 4px;",
                 div(style = "margin-bottom: 12px;",
                   actionButton("send_to_codap", "Send to CODAP",
                     class = "btn-primary btn-lg", icon = icon("chart-bar"),
@@ -748,37 +789,6 @@ ui <- dashboardPage(
                        style = "display: block; margin: 0 auto 8px auto; mix-blend-mode: multiply;"),
               tags$a(href = "https://projectcredible.com", target = "_blank",
                      style = "font-size: 12px; color: #3B7A8C;", "projectcredible.com")
-            )
-          )
-        ),
-        fluidRow(
-          box(
-            title = "Understanding your data: healthy ranges",
-            status = "info", solidHeader = TRUE, width = 12,
-            p("Use these as a starting point for investigation. Water quality varies naturally, so values outside these ranges aren’t always a problem."),
-            tags$table(class = "table table-sm table-striped", style = "font-size: 13px;",
-              tags$thead(
-                tags$tr(tags$th("Parameter"), tags$th("Healthy range"), tags$th("Why it matters"))
-              ),
-              tags$tbody(
-                tags$tr(tags$td("pH"), tags$td("6.5 – 9.0"), tags$td("Most aquatic life thrives in this range")),
-                tags$tr(tags$td("Dissolved oxygen"), tags$td("> 5 mg/L"), tags$td("Fish need oxygen to survive")),
-                tags$tr(tags$td("Temperature"), tags$td("< 20°C (cold-water fish)"), tags$td("Warm water holds less oxygen")),
-                tags$tr(tags$td("Turbidity"), tags$td("< 10 NTU"), tags$td("Cloudy water blocks sunlight for plants")),
-                tags$tr(tags$td("E. coli"), tags$td("GM ≤ 126 / STV ≤ 410 cfu/100 mL"), tags$td("Indicator of fecal contamination")),
-                tags$tr(tags$td("Nitrate"), tags$td("< 10 mg/L (drinking water)"), tags$td("High levels are a health concern")),
-                tags$tr(tags$td("Phosphorus"), tags$td("< 0.1 mg/L"), tags$td("Excess causes algae blooms")),
-                tags$tr(tags$td("Ammonia"), tags$td("< 0.02 mg/L"), tags$td("Toxic to fish at low concentrations"))
-              )
-            ),
-            p(style = "font-size: 11px; color: #6c757d; margin-bottom: 0;",
-              tags$strong("Source: "),
-              "U.S. EPA ",
-              tags$a(href = "https://www.epa.gov/ground-water-and-drinking-water/national-primary-drinking-water-regulations",
-                target = "_blank", "National Primary Drinking Water Regulations"),
-              " and ",
-              tags$a(href = "https://www.epa.gov/wqs-tech/water-quality-standards-handbook",
-                target = "_blank", "Water Quality Standards Handbook"), "."
             )
           )
         )

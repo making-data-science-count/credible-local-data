@@ -9,8 +9,24 @@ if (length(missing_pkgs) > 0) {
   install.packages(missing_pkgs, dependencies = TRUE)
 }
 
+# Attempt to install climateR from GitHub if it's needed and missing
+if (!requireNamespace("climateR", quietly = TRUE)) {
+  if (!requireNamespace("remotes", quietly = TRUE)) {
+    install.packages("remotes")
+  }
+  tryCatch(
+    remotes::install_github("mikejohnson51/climateR"),
+    error = function(e) {
+      packageStartupMessage("Optional package 'climateR' not installed. Install with: remotes::install_github('mikejohnson51/climateR')")
+    }
+  )
+}
+
 # Load packages
 invisible(lapply(cran_pkgs, function(p) require(p, character.only = TRUE)))
+if (requireNamespace("climateR", quietly = TRUE)) {
+  require(climateR)
+}
 
 library(shiny)
 library(shinydashboard)
@@ -24,7 +40,12 @@ library(future)
 library(bslib)
 plan(multisession)  # Enable async execution for ExtendedTask
 
-# Weather/climateR feature is archived; its packages are intentionally not loaded.
+# Check if climateR is installed, if not provide instructions
+if (!requireNamespace("climateR", quietly = TRUE)) {
+  warning("climateR package not found. Install with: devtools::install_github('mikejohnson51/climateR')")
+} else {
+  library(climateR)
+}
 
 # Load comprehensive FIPS crosswalk data from local file
 if (!file.exists("fips-xwalk.csv")) {
@@ -188,29 +209,6 @@ body, .content-wrapper, .main-sidebar, .main-header {
 }
 @keyframes spin {
   to { transform: rotate(360deg); }
-}
-
-/* CODAP send status (inline, next to the Send to CODAP button) */
-.codap-status { display: inline-block; vertical-align: middle; }
-.codap-status-busy { color: #4A9BAA; }
-.codap-status-busy::before {
-  content: '';
-  display: inline-block;
-  width: 14px;
-  height: 14px;
-  margin-right: 8px;
-  vertical-align: -2px;
-  border: 2px solid #cfe3e8;
-  border-top-color: #3B7A8C;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-.codap-status-ok  { color: #2e7d32; }
-.codap-status-err { color: #c62828; }
-button#send_to_codap.disabled,
-button#send_to_codap:disabled {
-  opacity: 0.65;
-  cursor: not-allowed;
 }
 .progress-bar-custom {
   width: 100%;
@@ -391,83 +389,55 @@ ui <- dashboardPage(
         // This receives data from R/Shiny and sends it to CODAP
         Shiny.addCustomMessageHandler('sendToCODAP', function(payload) {
           console.log('Received sendToCODAP message from Shiny:', payload);
-
+          console.log('Current window location:', window.location.href);
+          console.log('Parent window exists:', window.parent !== window);
+          console.log('CODAP API available:', typeof window.parent.postMessage === 'function');
+          
           var datasetName = payload.datasetName || 'MyData';
-          var datasetTitle = payload.datasetTitle || datasetName;
           var attributes = payload.attributes || [];
           var cases = payload.cases || [];
-
-          var btn = document.getElementById('send_to_codap');
-          var statusEl = document.getElementById('codap_send_status');
-
-          function setStatus(text, cls) {
-            if (statusEl) {
-              statusEl.className = cls || '';
-              statusEl.textContent = text || '';
-            }
-          }
-          function setBusy(busy) {
-            if (!btn) return;
-            btn.disabled = busy;
-            if (busy) { btn.classList.add('disabled'); }
-            else { btn.classList.remove('disabled'); }
-          }
-
-          setBusy(true);
-          setStatus('Sending data to CODAP…', 'codap-status codap-status-busy');
-
+          
+          console.log('Dataset name:', datasetName);
+          console.log('Number of attributes:', attributes.length);
+          console.log('Number of cases:', cases.length);
+          
           // Step 1: Create CODAP dataContext with attributes
           codapInterface('create', 'dataContext', {
             name: datasetName,
-            title: datasetTitle,
-            description: 'Data exported from CREDIBLE Local Data',
+            title: datasetName,
+            description: 'Data exported from CREDIBLE Local Data Shiny App',
             collections: [{
               name: datasetName + '_collection',
-              title: datasetTitle,
+              title: datasetName,
               attrs: attributes
             }]
           })
           .then(function(response) {
+            console.log('DataContext created successfully:', response);
+            
             // Step 2: Send data rows as cases to CODAP
             return codapInterface('create', 'dataContext[' + datasetName + '].item', cases);
           })
           .then(function(response) {
-            // Step 3: Auto-open the data as a case table so students see it
-            // right away. The data is already in CODAP at this point, so a
-            // failure here (e.g. older CODAP) must NOT fail the whole send.
-            return codapInterface('create', 'component', {
-              type: 'caseTable',
-              dataContext: datasetName,
-              name: datasetName + '_table',
-              title: datasetTitle
-            }).catch(function(e) {
-              console.warn('Could not auto-open case table:', e);
-              return null;
-            });
-          })
-          .then(function(response) {
-            console.log('Cases sent successfully, count:', cases.length);
-            setBusy(false);
-            setStatus('✓ Sent ' + cases.length + ' rows to CODAP', 'codap-status codap-status-ok');
-
+            console.log('Cases sent successfully:', response);
+            console.log('Total cases sent:', cases.length);
+            
             // Notify Shiny of success
             Shiny.setInputValue('codap_export_status', {
               success: true,
-              message: 'Sent ' + cases.length + ' rows to CODAP as ' + datasetTitle + '. Look for it in CODAP to make graphs.',
+              message: 'Successfully sent ' + cases.length + ' rows to CODAP dataset: ' + datasetName,
               timestamp: new Date().getTime()
             }, {priority: 'event'});
           })
           .catch(function(error) {
             console.error('Error sending data to CODAP:', error);
-
+            
+            // Create helpful error message
             var errorMsg = error.message || error.error || 'Unknown error';
             if (error.helpUrl) {
               errorMsg += ' Visit: ' + error.helpUrl;
             }
-
-            setBusy(false);
-            setStatus('Couldn’t send to CODAP — see the message below.', 'codap-status codap-status-err');
-
+            
             // Notify Shiny of error
             Shiny.setInputValue('codap_export_status', {
               success: false,
@@ -490,303 +460,356 @@ ui <- dashboardPage(
       # ======================================================================
       tabPanel("Water Quality",
         br(),
-
-        # ============================================================
-        # STEP 1 - Choose a location
-        # ============================================================
         fluidRow(
           box(
-            title = "Step 1 · Choose a location",
-            status = "primary", solidHeader = TRUE, width = 12,
-            fluidRow(
-              column(5,
-                selectInput("state_selection", "State",
-                  choices = c("Choose a state..." = "",
-                              setNames(states_df$state_name, states_df$state_name)),
-                  selected = "Tennessee")
-              ),
-              column(7,
-                selectizeInput("county_selection", "County (pick one or more)",
-                  choices = {
-                    tn <- fips_clean[fips_clean$state_name == "Tennessee", "county_display", drop = TRUE]
-                    setNames(tn, tn)
-                  },
-                  selected = "Knox County",
-                  multiple = TRUE,
-                  options = list(placeholder = "Select one or more counties"))
-              )
-            )
-          )
-        ),
+            title = "Access Water Quality Data", status = "primary", solidHeader = TRUE, width = 12,
+                  fluidRow(
+                    column(3,
+                           selectInput("state_selection", "Select State:", 
+                                       choices = c("Choose a state..." = "", 
+                                                   setNames(states_df$state_name, states_df$state_name)),
+                                       selected = "Tennessee")
+                    ),
+                    column(3,
+                           selectizeInput("county_selection", "Select County/Counties:",
+                                       choices = {
+                                         tn <- fips_clean[fips_clean$state_name == "Tennessee", "county_display", drop = TRUE]
+                                         setNames(tn, tn)
+                                       },
+                                       selected = "Knox County",
+                                       multiple = TRUE,
+                                       options = list(placeholder = "Select one or more counties"))
+                    ),
+                    column(3,
+                           sliderInput("year_selection", "Select Year Range:",
+                                       min = 1960, max = 2026,
+                                       value = c(2023, 2025),
+                                       step = 1, sep = "")
+                    )
+                  ),
+                  
+                  # Water Quality Parameters Selection
+                  hr(),
+                  h4("Select Water Quality Parameters"),
+                  p("Choose which water quality parameters to fetch. Click 'What do these mean?' to learn about each parameter."),
 
-        # ============================================================
-        # STEP 2 - Choose what to measure
-        # ============================================================
-        fluidRow(
-          box(
-            title = "Step 2 · Choose what to measure",
-            status = "primary", solidHeader = TRUE, width = 12,
-            p("Pick the measurements you want. Hover the ",
-              tags$span(icon("info-circle"), style = "color:#3B7A8C;"),
-              " for a quick explanation, or click the ",
-              tags$span(icon("external-link"), style = "color:#3B7A8C;"),
-              " for the EPA fact sheet."),
-            checkboxGroupInput(
-              "parameters_primary",
-              NULL,
-              choiceNames = list(
-                tags$span(
-                  "pH ",
-                  tags$span(
-                    icon("info-circle"),
-                    title = "EPA pH fact sheet: pH measures the hydrogen ion balance of water and affects aquatic life. Most waters that support aquatic life fall between pH 6.5 and 9.0.",
-                    style = "color: #3c8dbc; cursor: help; margin-left: 4px;"
+                  # Expandable help section for parameter descriptions
+                  tags$details(
+                    tags$summary("What do these parameters mean?"),
+                    tags$div(style = "padding: 10px 0;",
+                      tags$h6("Primary Indicators:", style = "margin-top: 0;"),
+                      tags$ul(style = "margin-bottom: 15px;",
+                        tags$li(tags$strong("pH"), " - Measures acidity/alkalinity on a 0-14 scale. 7 is neutral; below 7 is acidic, above 7 is basic. Most aquatic life thrives between 6.5-9.0. ", tags$a("EPA fact sheet", href = "https://www.epa.gov/system/files/documents/2021-07/parameter-factsheet_ph.pdf", target = "_blank")),
+                        tags$li(tags$strong("Turbidity"), " - Measures water clarity (how cloudy it is). Higher numbers mean cloudier water, which can harm fish gills and block sunlight for plants. ", tags$a("EPA fact sheet", href = "https://www.epa.gov/system/files/documents/2021-07/parameter-factsheet_turbidity.pdf", target = "_blank")),
+                        tags$li(tags$strong("Temperature"), " - Water temperature affects how much oxygen water can hold and influences aquatic life behavior and survival. ", tags$a("EPA fact sheet", href = "https://www.epa.gov/system/files/documents/2021-07/parameter-factsheet_temperature.pdf", target = "_blank")),
+                        tags$li(tags$strong("Dissolved oxygen"), " - The amount of oxygen available in water for fish and other organisms to breathe. Low levels can cause fish kills. ", tags$a("EPA fact sheet", href = "https://www.epa.gov/system/files/documents/2021-07/parameter-factsheet_do.pdf", target = "_blank")),
+                        tags$li(tags$strong("E. coli"), " - A bacterium used as an indicator of fecal contamination. EPA recommends a geometric mean of ", tags$strong("126 cfu/100 mL"), " and a statistical threshold value (STV) of ", tags$strong("410 cfu/100 mL"), " for recreational waters. ", tags$a("EPA fact sheet", href = "https://www.epa.gov/system/files/documents/2021-07/parameter-factsheet_e.-coli.pdf", target = "_blank"))
+                      ),
+                      tags$h6("Additional Parameters:"),
+                      tags$ul(
+                        tags$li(tags$strong("Phosphorus"), " - A nutrient essential for life, but too much causes algae blooms that deplete oxygen. Often comes from fertilizers and detergents."),
+                        tags$li(tags$strong("Nitrate"), " - A nutrient that often comes from fertilizers, sewage, or animal waste. High levels can harm aquatic ecosystems and drinking water."),
+                        tags$li(tags$strong("Nitrite"), " - Related to nitrate in the nitrogen cycle. Can indicate recent pollution from sewage or animal waste."),
+                        tags$li(tags$strong("Conductivity"), " - How well water conducts electricity, which indicates the amount of dissolved minerals and salts."),
+                        tags$li(tags$strong("Total dissolved solids"), " - The total amount of dissolved substances (minerals, salts, metals) in water."),
+                        tags$li(tags$strong("Alkalinity"), " - Water's ability to neutralize acids, like a natural buffer. Helps protect aquatic life from pH changes."),
+                        tags$li(tags$strong("Hardness"), " - The amount of calcium and magnesium in water. 'Hard' water has more minerals."),
+                        tags$li(tags$strong("Chloride"), " - Salt content in water. High levels often come from road salt, water softeners, or wastewater."),
+                        tags$li(tags$strong("Sulfate"), " - A naturally occurring mineral, but high levels may indicate industrial pollution or acid mine drainage."),
+                        tags$li(tags$strong("Ammonia"), " - Can be toxic to fish even at low levels. Often comes from sewage, fertilizers, or animal waste."),
+                        tags$li(tags$strong("Total nitrogen"), " - The sum of all nitrogen forms (nitrate, nitrite, ammonia, organic nitrogen). A key indicator of nutrient pollution.")
+                      )
+                    )
                   ),
-                  tags$a(
-                    icon("external-link"),
-                    href = "https://www.epa.gov/system/files/documents/2021-07/parameter-factsheet_ph.pdf",
-                    target = "_blank",
-                    title = "Open EPA pH fact sheet",
-                    style = "margin-left: 6px;"
-                  )
-                ),
-                tags$span(
-                  "Turbidity ",
-                  tags$span(
-                    icon("info-circle"),
-                    title = "EPA turbidity fact sheet: Settleable and suspended solids should not reduce the depth of the compensation point for photosynthetic activity by more than 10 percent from the seasonally established norm for aquatic life.",
-                    style = "color: #3c8dbc; cursor: help; margin-left: 4px;"
+                  br(),
+
+                  fluidRow(
+                    column(6,
+                           h5("Primary Indicators"),
+                           checkboxGroupInput(
+                             "parameters_primary",
+                             NULL,
+                             choiceNames = list(
+                               tags$span(
+                                 "pH ",
+                                 tags$span(
+                                   icon("info-circle"),
+                                   title = "EPA pH fact sheet: pH measures the hydrogen ion balance of water and affects aquatic life. Most waters that support aquatic life fall between pH 6.5 and 9.0.",
+                                   style = "color: #3c8dbc; cursor: help; margin-left: 4px;"
+                                 ),
+                                 tags$a(
+                                   icon("external-link"),
+                                   href = "https://www.epa.gov/system/files/documents/2021-07/parameter-factsheet_ph.pdf",
+                                   target = "_blank",
+                                   title = "Open EPA pH fact sheet",
+                                   style = "margin-left: 6px;"
+                                 )
+                               ),
+                               tags$span(
+                                 "Turbidity ",
+                                 tags$span(
+                                   icon("info-circle"),
+                                   title = "EPA turbidity fact sheet: Settleable and suspended solids should not reduce the depth of the compensation point for photosynthetic activity by more than 10 percent from the seasonally established norm for aquatic life.",
+                                   style = "color: #3c8dbc; cursor: help; margin-left: 4px;"
+                                 ),
+                                 tags$a(
+                                   icon("external-link"),
+                                   href = "https://www.epa.gov/system/files/documents/2021-07/parameter-factsheet_turbidity.pdf",
+                                   target = "_blank",
+                                   title = "Open EPA turbidity fact sheet",
+                                   style = "margin-left: 6px;"
+                                 )
+                               ),
+                               tags$span(
+                                 "Temperature ",
+                                 tags$span(
+                                   icon("info-circle"),
+                                   title = "EPA temperature fact sheet: Water temperature shapes habitat quality, organism metabolism, and how much dissolved oxygen water can hold.",
+                                   style = "color: #3c8dbc; cursor: help; margin-left: 4px;"
+                                 ),
+                                 tags$a(
+                                   icon("external-link"),
+                                   href = "https://www.epa.gov/system/files/documents/2021-07/parameter-factsheet_temperature.pdf",
+                                   target = "_blank",
+                                   title = "Open EPA temperature fact sheet",
+                                   style = "margin-left: 6px;"
+                                 )
+                               ),
+                               tags$span(
+                                 "Dissolved oxygen ",
+                                 tags$span(
+                                   icon("info-circle"),
+                                   title = "EPA dissolved oxygen fact sheet: Dissolved oxygen is essential for fish and aquatic organisms, and low concentrations can stress or kill aquatic life.",
+                                   style = "color: #3c8dbc; cursor: help; margin-left: 4px;"
+                                 ),
+                                 tags$a(
+                                   icon("external-link"),
+                                   href = "https://www.epa.gov/system/files/documents/2021-07/parameter-factsheet_do.pdf",
+                                   target = "_blank",
+                                   title = "Open EPA dissolved oxygen fact sheet",
+                                   style = "margin-left: 6px;"
+                                 )
+                               ),
+                               tags$span(
+                                 "E. coli ",
+                                 tags$span(
+                                   icon("info-circle"),
+                                   title = "EPA E. coli fact sheet: Geometric mean of 126 cfu/100 mL and statistical threshold value (STV) of 410 cfu/100 mL for recreational waters. E. coli indicates fecal contamination.",
+                                   style = "color: #3c8dbc; cursor: help; margin-left: 4px;"
+                                 ),
+                                 tags$a(
+                                   icon("external-link"),
+                                   href = "https://www.epa.gov/system/files/documents/2021-07/parameter-factsheet_e.-coli.pdf",
+                                   target = "_blank",
+                                   title = "Open EPA E. coli fact sheet",
+                                   style = "margin-left: 6px;"
+                                 )
+                               )
+                             ),
+                             choiceValues = c("pH", "Turbidity", "Temperature", "Dissolved oxygen", "Escherichia coli"),
+                             selected = c("pH", "Turbidity", "Temperature", "Dissolved oxygen", "Escherichia coli"),
+                             inline = FALSE
+                           )
+                    ),
+                    column(6,
+                           box(
+                             title = "Additional Parameters",
+                             width = NULL,
+                             collapsible = TRUE,
+                             collapsed = TRUE,
+                             checkboxGroupInput("parameters_additional", NULL,
+                                                choices = c("Phosphorus" = "Phosphorus",
+                                                            "Nitrate" = "Nitrate",
+                                                            "Nitrite" = "Nitrite",
+                                                            "Conductivity" = "Conductivity",
+                                                            "Total dissolved solids" = "Total dissolved solids",
+                                                            "Alkalinity" = "Alkalinity",
+                                                            "Hardness" = "Hardness",
+                                                            "Chloride" = "Chloride",
+                                                            "Sulfate" = "Sulfate",
+                                                            "Ammonia" = "Ammonia",
+                                                            "Total nitrogen" = "Total nitrogen"),
+                                                selected = character(0),
+                                                inline = FALSE)
+                           )
+                    )
                   ),
-                  tags$a(
-                    icon("external-link"),
-                    href = "https://www.epa.gov/system/files/documents/2021-07/parameter-factsheet_turbidity.pdf",
-                    target = "_blank",
-                    title = "Open EPA turbidity fact sheet",
-                    style = "margin-left: 6px;"
-                  )
-                ),
-                tags$span(
-                  "Temperature ",
-                  tags$span(
-                    icon("info-circle"),
-                    title = "EPA temperature fact sheet: Water temperature shapes habitat quality, organism metabolism, and how much dissolved oxygen water can hold.",
-                    style = "color: #3c8dbc; cursor: help; margin-left: 4px;"
+                  
+                  fluidRow(
+                    column(3,
+                           br(),
+                           actionButton("fetch_data", "Fetch Water Quality Data", 
+                                        class = "btn-primary", icon = icon("download")),
+                           br(), br(),
+                           actionButton("refresh_data", "Refresh/Clear", 
+                                        class = "btn-warning", icon = icon("refresh"))
+                    )
                   ),
-                  tags$a(
-                    icon("external-link"),
-                    href = "https://www.epa.gov/system/files/documents/2021-07/parameter-factsheet_temperature.pdf",
-                    target = "_blank",
-                    title = "Open EPA temperature fact sheet",
-                    style = "margin-left: 6px;"
-                  )
-                ),
-                tags$span(
-                  "Dissolved oxygen ",
-                  tags$span(
-                    icon("info-circle"),
-                    title = "EPA dissolved oxygen fact sheet: Dissolved oxygen is essential for fish and aquatic organisms, and low concentrations can stress or kill aquatic life.",
-                    style = "color: #3c8dbc; cursor: help; margin-left: 4px;"
-                  ),
-                  tags$a(
-                    icon("external-link"),
-                    href = "https://www.epa.gov/system/files/documents/2021-07/parameter-factsheet_do.pdf",
-                    target = "_blank",
-                    title = "Open EPA dissolved oxygen fact sheet",
-                    style = "margin-left: 6px;"
-                  )
-                ),
-                tags$span(
-                  "E. coli ",
-                  tags$span(
-                    icon("info-circle"),
-                    title = "EPA E. coli fact sheet: Geometric mean of 126 cfu/100 mL and statistical threshold value (STV) of 410 cfu/100 mL for recreational waters. E. coli indicates fecal contamination.",
-                    style = "color: #3c8dbc; cursor: help; margin-left: 4px;"
-                  ),
-                  tags$a(
-                    icon("external-link"),
-                    href = "https://www.epa.gov/system/files/documents/2021-07/parameter-factsheet_e.-coli.pdf",
-                    target = "_blank",
-                    title = "Open EPA E. coli fact sheet",
-                    style = "margin-left: 6px;"
+
+                  # Data Processing Status
+                  hr(),
+                  h4("Data Processing Status"),
+                  verbatimTextOutput("status_text"),
+                  
+                  # Site selector - only show after data is fetched
+                  conditionalPanel(
+                    condition = "output.data_fetched == true",
+                    hr(),
+                    h4("Site Selection"),
+                    fluidRow(
+                      column(8,
+                             selectInput("site_selection", "Select Site(s) for Selected Location:",
+                                         choices = c("All sites" = "all"),
+                                         selected = "all",
+                                         multiple = TRUE)
+                      ),
+                      column(4,
+                             br(),
+                             p("Select specific monitoring sites within your chosen location for focused analysis.")
+                      )
+                    ),
+
+                    hr(),
+                    h4("Time Aggregation"),
+                    fluidRow(
+                      column(8,
+                             selectInput("time_aggregation", "Aggregate measurements by:",
+                                         choices = c("None (raw data)" = "none",
+                                                     "Month" = "month"),
+                                         selected = "month")
+                      ),
+                      column(4,
+                             br(),
+                             p("Aggregate multiple measurements within each time period to reduce missingness and data volume.")
+                      )
+                    ),
+                    p(style = "font-size: 12px; color: #6c757d;",
+                      "Note: Aggregation calculates the mean of available measurements for each parameter within each time period. This helps handle irregular sampling and missing values.")
                   )
                 )
               ),
-              choiceValues = c("pH", "Turbidity", "Temperature", "Dissolved oxygen", "Escherichia coli"),
-              selected = c("pH", "Turbidity", "Temperature", "Dissolved oxygen", "Escherichia coli"),
-              inline = FALSE
-            ),
+              
+              # Loading indicator
+              conditionalPanel(
+                condition = "output.loading_visible == true",
+                fluidRow(
+                  box(
+                    title = "Data Processing", status = "primary", solidHeader = TRUE, width = 12,
+                    div(class = "loading-container",
+                        div(class = "loading-spinner"),
+                        h4("Fetching Water Quality Data..."),
+                        p("Connecting to USGS Water Quality Portal and processing data"),
+                        p("This may take 10-60 seconds depending on data availability and timeframe",
+                          style = "font-size: 12px; margin-top: 10px; opacity: 0.8;")
+                    )
+                  )
+                )
+              ),
+              
 
-            tags$details(
-              tags$summary("More options (year range and extra parameters)"),
-              tags$div(style = "padding-top: 12px;",
-                sliderInput("year_selection", "Year range",
-                  min = 1960, max = 2026,
-                  value = c(2025, 2025),
-                  step = 1, sep = ""),
-                tags$label("Additional parameters",
-                  style = "font-weight: 600; display: block; margin-bottom: 6px;"),
-                checkboxGroupInput("parameters_additional", NULL,
-                  choices = c("Phosphorus" = "Phosphorus",
-                              "Nitrate" = "Nitrate",
-                              "Nitrite" = "Nitrite",
-                              "Conductivity" = "Conductivity",
-                              "Total dissolved solids" = "Total dissolved solids",
-                              "Alkalinity" = "Alkalinity",
-                              "Hardness" = "Hardness",
-                              "Chloride" = "Chloride",
-                              "Sulfate" = "Sulfate",
-                              "Ammonia" = "Ammonia",
-                              "Total nitrogen" = "Total nitrogen"),
-                  selected = character(0),
-                  inline = TRUE)
-              )
-            )
-          )
-        ),
+              conditionalPanel(
+                condition = "output.data_fetched == true",
+                fluidRow(
+                  box(
+                    title = "Data Preview", status = "warning", solidHeader = TRUE, width = 12,
+                    DT::dataTableOutput("preview_wide"),
+                    # ============================================================================
+                    # CODAP EXPORT UI ELEMENTS - Water Quality
+                    # ============================================================================
+                    div(style = "margin-top: 15px;",
+                      # Primary action: Send to CODAP (prominent)
+                      div(style = "margin-bottom: 12px;",
+                        actionButton("send_to_codap", "Send to CODAP for Analysis",
+                                     class = "btn-primary btn-lg", icon = icon("chart-bar"),
+                                     style = "font-size: 16px; padding: 12px 24px;"),
+                        p(style = "font-size: 12px; color: #6c757d; margin-top: 5px; margin-bottom: 0;",
+                          "Open your data in CODAP to create graphs and explore patterns")
+                      ),
+                      # Secondary action: Download CSV (muted styling)
+                      div(
+                        downloadButton("download_wide", "Download as CSV",
+                                       class = "btn-warning", icon = icon("download")),
+                        span(style = "font-size: 12px; color: #6c757d; margin-left: 10px;",
+                             "For use in spreadsheet software")
+                      )
+                    )
+                  )
+                )
+              ),
 
-        # ============================================================
-        # STEP 3 - Get your data
-        # ============================================================
-        fluidRow(
-          box(
-            title = "Step 3 · Get your data",
-            status = "primary", solidHeader = TRUE, width = 12,
-            div(style = "margin-bottom: 10px;",
-              actionButton("fetch_data", "Get Water Data",
-                class = "btn-primary btn-lg", icon = icon("download"))
-            ),
-            div(style = "margin-top: 14px;",
-              verbatimTextOutput("status_text")
-            )
-          )
-        ),
-
-        # Loading indicator
-        conditionalPanel(
-          condition = "output.loading_visible == true",
-          fluidRow(
-            box(
-              title = "Working…", status = "primary", solidHeader = TRUE, width = 12,
-              div(class = "loading-container",
-                div(class = "loading-spinner"),
-                h4("Fetching water quality data…"),
-                p("Connecting to the USGS Water Quality Portal. This usually takes 10–60 seconds, depending on the location and year range.")
-              )
-            )
-          )
-        ),
-
-        # Results - appears after data is fetched
-        conditionalPanel(
-          condition = "output.data_fetched == true",
-
-          fluidRow(
-            box(
-              title = "Refine your data (optional)",
-              status = "primary", solidHeader = TRUE, width = 12,
-              collapsible = TRUE, collapsed = TRUE,
+              # Water Quality Standards Reference Section
               fluidRow(
-                column(6,
-                  selectInput("site_selection", "Monitoring site(s)",
-                    choices = c("All sites" = "all"),
-                    selected = "all", multiple = TRUE),
-                  p(style = "font-size: 12px; color: #6c757d;",
-                    "Focus on specific monitoring sites within your location.")
-                ),
-                column(6,
-                  selectInput("time_aggregation", "Combine measurements by",
-                    choices = c("Don't combine (raw data)" = "none",
-                                "Month" = "month"),
-                    selected = "month"),
-                  p(style = "font-size: 12px; color: #6c757d;",
-                    "Averages the measurements within each period to reduce gaps and data size.")
-                )
-              )
-            )
-          ),
+                box(
+                  title = "Understanding Your Data: Water Quality Standards",
+                  status = "info", solidHeader = TRUE, width = 12, collapsible = TRUE, collapsed = TRUE,
+                  p("Use these reference values to help interpret your data. Remember: water quality varies naturally, ",
+                    "so values outside these ranges aren't always a problem - they're a starting point for investigation!"),
 
-          fluidRow(
-            box(
-              title = "Your data", status = "primary", solidHeader = TRUE, width = 12,
-              DT::dataTableOutput("preview_wide"),
-              div(style = "margin-top: 15px;",
-                div(style = "margin-bottom: 12px;",
-                  actionButton("send_to_codap", "Send to CODAP",
-                    class = "btn-primary btn-lg", icon = icon("chart-bar"),
-                    style = "font-size: 16px; padding: 12px 24px;"),
-                  span(id = "codap_send_status",
-                    style = "margin-left: 12px; font-size: 14px; font-weight: 600; vertical-align: middle;"),
-                  p(style = "font-size: 12px; color: #6c757d; margin-top: 8px; margin-bottom: 0;",
-                    tags$strong("CODAP"),
-                    " is a free online tool for making graphs and exploring data. ",
-                    "Your selected data opens there instantly — no download needed. ",
-                    tags$a(href = "https://codap.concord.org/", target = "_blank",
-                      "What’s CODAP?"))
-                ),
-                div(
-                  downloadButton("download_wide", "Download as CSV",
-                    class = "btn-warning", icon = icon("download")),
-                  span(style = "font-size: 12px; color: #6c757d; margin-left: 10px;",
-                    "For use in spreadsheet software")
+                  fluidRow(
+                    column(6,
+                      h5("EPA Drinking Water Standards"),
+                      p(style = "font-size: 12px; color: #6c757d;",
+                        "Maximum levels allowed in public drinking water supplies"),
+                      tags$table(class = "table table-sm table-striped", style = "font-size: 13px;",
+                        tags$thead(
+                          tags$tr(tags$th("Parameter"), tags$th("Maximum Level"), tags$th("Why It Matters"))
+                        ),
+                        tags$tbody(
+                          tags$tr(tags$td("pH"), tags$td("6.5 - 8.5"), tags$td("Outside this range can corrode pipes or taste bad")),
+                          tags$tr(tags$td("Nitrate"), tags$td("10 mg/L"), tags$td("High levels can cause 'blue baby syndrome'")),
+                          tags$tr(tags$td("Nitrite"), tags$td("1 mg/L"), tags$td("Similar health concerns as nitrate")),
+                          tags$tr(tags$td("Chloride"), tags$td("250 mg/L"), tags$td("Affects taste; high levels may indicate pollution")),
+                          tags$tr(tags$td("Sulfate"), tags$td("250 mg/L"), tags$td("High levels can cause digestive issues")),
+                          tags$tr(tags$td("Total dissolved solids"), tags$td("500 mg/L"), tags$td("Affects taste and can indicate contamination"))
+                        )
+                      )
+                    ),
+                    column(6,
+                      h5("Healthy Stream Guidelines"),
+                      p(style = "font-size: 12px; color: #6c757d;",
+                        "Typical ranges for streams that support aquatic life"),
+                      tags$table(class = "table table-sm table-striped", style = "font-size: 13px;",
+                        tags$thead(
+                          tags$tr(tags$th("Parameter"), tags$th("Healthy Range"), tags$th("Why It Matters"))
+                        ),
+                        tags$tbody(
+                          tags$tr(tags$td("pH"), tags$td("6.5 - 9.0"), tags$td("Most aquatic life thrives in this range")),
+                          tags$tr(tags$td("Dissolved oxygen"), tags$td("> 5 mg/L"), tags$td("Fish need oxygen to survive")),
+                          tags$tr(tags$td("Temperature"), tags$td("< 20°C (cold water fish)"), tags$td("Warm water holds less oxygen")),
+                          tags$tr(tags$td("Turbidity"), tags$td("< 10 NTU"), tags$td("Cloudy water blocks sunlight for plants")),
+                          tags$tr(tags$td("E. coli"), tags$td("GM ≤ 126 / STV ≤ 410 cfu/100 mL"), tags$td("Indicator of fecal contamination in recreational waters")),
+                          tags$tr(tags$td("Phosphorus"), tags$td("< 0.1 mg/L"), tags$td("Excess causes algae blooms")),
+                          tags$tr(tags$td("Ammonia"), tags$td("< 0.02 mg/L"), tags$td("Toxic to fish at low concentrations"))
+                        )
+                      )
+                    )
+                  ),
+
+                  hr(),
+                  p(style = "font-size: 11px; color: #6c757d; margin-bottom: 0;",
+                    tags$strong("Source: "),
+                    "U.S. Environmental Protection Agency. ",
+                    tags$em("National Primary Drinking Water Regulations"), " and ",
+                    tags$em("Water Quality Standards Handbook"), ". ",
+                    tags$a(href = "https://www.epa.gov/ground-water-and-drinking-water/national-primary-drinking-water-regulations",
+                           target = "_blank", "EPA Drinking Water Standards"),
+                    " | ",
+                    tags$a(href = "https://www.epa.gov/wqs-tech/water-quality-standards-handbook",
+                           target = "_blank", "Water Quality Standards Handbook")
+                  )
                 )
-              )
-            )
-          )
-        ),
+              ),
 
       ), # end Water Quality tabPanel
+    ), # end tabsetPanel
 
-      # ======================================================================
-      # ABOUT TAB
-      # ======================================================================
-      tabPanel("About",
-        br(),
-        fluidRow(
-          box(
-            title = "About CREDIBLE Local Data", status = "primary",
-            solidHeader = TRUE, width = 12,
-            p("CREDIBLE Local Data helps middle and high school learners collect local water quality data and send it to CODAP to make graphs and explore patterns."),
-            div(style = "text-align: center; padding: 8px 0 4px 0;",
-              tags$img(src = "images/credible-logo.png", height = "100px",
-                       style = "display: block; margin: 0 auto 8px auto; mix-blend-mode: multiply;"),
-              tags$a(href = "https://projectcredible.com", target = "_blank",
-                     style = "font-size: 12px; color: #3B7A8C;", "projectcredible.com")
-            )
-          )
-        ),
-        fluidRow(
-          box(
-            title = "Understanding your data: healthy ranges",
-            status = "info", solidHeader = TRUE, width = 12,
-            p("Use these as a starting point for investigation. Water quality varies naturally, so values outside these ranges aren’t always a problem."),
-            tags$table(class = "table table-sm table-striped", style = "font-size: 13px;",
-              tags$thead(
-                tags$tr(tags$th("Parameter"), tags$th("Healthy range"), tags$th("Why it matters"))
-              ),
-              tags$tbody(
-                tags$tr(tags$td("pH"), tags$td("6.5 – 9.0"), tags$td("Most aquatic life thrives in this range")),
-                tags$tr(tags$td("Dissolved oxygen"), tags$td("> 5 mg/L"), tags$td("Fish need oxygen to survive")),
-                tags$tr(tags$td("Temperature"), tags$td("< 20°C (cold-water fish)"), tags$td("Warm water holds less oxygen")),
-                tags$tr(tags$td("Turbidity"), tags$td("< 10 NTU"), tags$td("Cloudy water blocks sunlight for plants")),
-                tags$tr(tags$td("E. coli"), tags$td("GM ≤ 126 / STV ≤ 410 cfu/100 mL"), tags$td("Indicator of fecal contamination")),
-                tags$tr(tags$td("Nitrate"), tags$td("< 10 mg/L (drinking water)"), tags$td("High levels are a health concern")),
-                tags$tr(tags$td("Phosphorus"), tags$td("< 0.1 mg/L"), tags$td("Excess causes algae blooms")),
-                tags$tr(tags$td("Ammonia"), tags$td("< 0.02 mg/L"), tags$td("Toxic to fish at low concentrations"))
-              )
-            ),
-            p(style = "font-size: 11px; color: #6c757d; margin-bottom: 0;",
-              tags$strong("Source: "),
-              "U.S. EPA ",
-              tags$a(href = "https://www.epa.gov/ground-water-and-drinking-water/national-primary-drinking-water-regulations",
-                target = "_blank", "National Primary Drinking Water Regulations"),
-              " and ",
-              tags$a(href = "https://www.epa.gov/wqs-tech/water-quality-standards-handbook",
-                target = "_blank", "Water Quality Standards Handbook"), "."
-            )
-          )
-        )
-      ) # end About tabPanel
-    ) # end tabsetPanel
+    # Footer
+    div(style = "text-align: center; padding: 16px 0 12px 0;",
+      tags$img(src = "images/credible-logo.png", height = "100px",
+               style = "display: block; margin: 0 auto 8px auto; mix-blend-mode: multiply;"),
+      tags$a(href = "https://projectcredible.com", target = "_blank",
+             style = "font-size: 12px; color: #3B7A8C;", "projectcredible.com")
+    )
   )
 )
 
@@ -1170,7 +1193,37 @@ server <- function(input, output, session) {
     
 
     
-    # Clear/refresh removed: re-fetching with new selections replaces results.
+    # Refresh/Clear data functionality
+    observeEvent(input$refresh_data, {
+      # Reset all reactive values to initial state
+      values$long_data <- NULL
+      values$wide_data <- NULL
+      values$data_fetched <- FALSE
+      values$status <- "Ready to fetch water quality data..."
+      values$current_state_fips <- ""
+      values$current_county_fips <- ""
+      values$current_location <- ""
+      values$loading_visible <- FALSE
+      values$available_sites <- NULL
+      
+      # Reset input selections
+      updateSelectInput(session, "state_selection", selected = "")
+      updateSelectizeInput(session, "county_selection",
+                        choices = c("Choose county/counties..." = ""),
+                        selected = character(0))
+      updateSliderInput(session, "year_selection", value = c(2023, 2025))
+      updateCheckboxGroupInput(session, "parameters_primary",
+                               selected = c("pH", "Turbidity", "Temperature", "Dissolved oxygen", "Escherichia coli"))
+      updateCheckboxGroupInput(session, "parameters_additional",
+                               selected = character(0))
+      updateSelectInput(session, "site_selection", 
+                        choices = c("All sites" = "all"),
+                        selected = "all")
+      
+
+      
+      showNotification("Interface refreshed and data cleared!", type = "message", duration = 3)
+    })
     
     # NOTE: fetch_water_data() function removed - logic moved to ExtendedTask observers above
 
@@ -1260,31 +1313,22 @@ server <- function(input, output, session) {
         return()
       }
       
-      # Build a friendly dataset title from the location + year range, plus a
-      # machine-safe name CODAP can use as an identifier. This replaces the old
-      # (non-existent) input$codap_dataset_name so students can tell datasets
-      # apart in CODAP when they compare locations or time periods.
-      loc <- if (!is.null(values$current_location) && nzchar(values$current_location)) {
-        values$current_location
-      } else {
-        "Local"
+      # Get dataset name from input and add aggregation suffix
+      dataset_name <- input$codap_dataset_name
+      if (is.null(dataset_name) || dataset_name == "") {
+        dataset_name <- "WaterQualityData"
       }
-      yr <- if (!is.null(input$year_selection) && length(input$year_selection) == 2) {
-        paste0(" ", input$year_selection[1], "-", input$year_selection[2])
-      } else {
-        ""
+
+      # Add aggregation level to dataset name
+      if (!is.null(input$time_aggregation) && input$time_aggregation != "none") {
+        agg_label <- switch(input$time_aggregation,
+          "day" = "Daily",
+          "week" = "Weekly",
+          "month" = "Monthly",
+          "year" = "Yearly"
+        )
+        dataset_name <- paste0(dataset_name, "_", agg_label)
       }
-      agg_label <- if (!is.null(input$time_aggregation) && input$time_aggregation != "none") {
-        switch(input$time_aggregation,
-          "day" = " (Daily)", "week" = " (Weekly)",
-          "month" = " (Monthly)", "year" = " (Yearly)", "")
-      } else {
-        ""
-      }
-      dataset_title <- paste0(loc, " Water Quality", yr, agg_label)
-      # Machine-safe identifier: alphanumerics collapsed to single underscores
-      dataset_name <- gsub("(^_+|_+$)", "", gsub("[^A-Za-z0-9]+", "_", dataset_title))
-      if (!nzchar(dataset_name)) dataset_name <- "WaterQualityData"
       
       # Convert data frame columns into CODAP attributes format
       # Format: list(name = colName, title = colName)
@@ -1311,15 +1355,19 @@ server <- function(input, output, session) {
         type = "sendToCODAP",
         message = list(
           datasetName = dataset_name,
-          datasetTitle = dataset_title,
           attributes = attributes,
           cases = cases
         )
       )
-      # In-progress / success feedback is shown inline next to the button
-      # (see the sendToCODAP JS handler), so no transient toast here.
+      
+      # Show initial notification
+      showNotification(
+        paste("Sending", nrow(data), "rows to CODAP as dataset:", dataset_name),
+        type = "message",
+        duration = 3
+      )
     })
-
+    
     # Handle CODAP export status feedback from JavaScript
     observeEvent(input$codap_export_status, {
       status <- input$codap_export_status
@@ -1439,9 +1487,9 @@ server <- function(input, output, session) {
     # Weather data fetching logic
     observeEvent(input$fetch_weather_data, {
       
-      # Weather feature archived; this dead block never executes.
-      if (TRUE) {
-        showNotification("Weather data is currently unavailable (feature archived).",
+      # Check if climateR is available
+      if (!requireNamespace("climateR", quietly = TRUE)) {
+        showNotification("climateR package is required. Install with: devtools::install_github('mikejohnson51/climateR')", 
                          type = "error", duration = 10)
         return()
       }
@@ -1550,8 +1598,8 @@ server <- function(input, output, session) {
         
         values$weather_status <- paste("Fetching", input$weather_dataset, "data for", values$weather_current_location, "-", year_range_text, "- Parameters:", paste(selected_parameters, collapse = ", "))
         
-        # Weather feature archived; AOI lookup disabled.
-        county_aoi <- NULL
+        # Get county boundary as AOI for climateR
+        county_aoi <- AOI::aoi_get(county = values$weather_current_location)
         
         # Update status to show requests are running
         values$weather_status <- paste("Making requests to", input$weather_dataset, "for", values$weather_current_location, "for", length(selected_parameters), "parameters...")

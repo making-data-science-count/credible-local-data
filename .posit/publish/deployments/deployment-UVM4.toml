@@ -10,8 +10,8 @@ id = "019e038f-de68-97e9-f1fd-27ea35fe0e32"
 dashboard_url = "https://connect.posit.cloud/joshuafrosenberg/content/019e038f-de68-97e9-f1fd-27ea35fe0e32"
 direct_url = "https://019e038f-de68-97e9-f1fd-27ea35fe0e32.share.connect.posit.cloud"
 logs_url = "https://connect.posit.cloud/joshuafrosenberg/content/019e038f-de68-97e9-f1fd-27ea35fe0e32/history"
-deployed_at = "2026-05-07T17:50:37.960Z"
-bundle_id = "019e038f-de6a-70e6-ea3a-04647f932b52"
+deployed_at = "2026-05-18T01:45:14.585Z"
+bundle_id = "019e38c1-fe68-25d2-8364-db07110ec260"
 files = [
     ".posit/publish/credible-local-data-MNQM.toml",
     ".posit/publish/deployments/deployment-UVM4.toml",

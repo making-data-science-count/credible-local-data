@@ -7,6 +7,8 @@ entrypoint = "app.R"
 title = "credible-local-data"
 files = [
     "/app.R",
+    "/fips-xwalk.csv",
+    "/credible-logo.png",
     "/.posit/publish/credible-local-data-MNQM.toml",
     "/.posit/publish/deployments/deployment-UVM4.toml",
 ]

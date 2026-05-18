@@ -112,22 +112,66 @@ body, .content-wrapper, .main-sidebar, .main-header {
   text-align: center !important;
 }
 
-/* All box headers — same color, every box type */
-.box.box-solid > .box-header {
-  background-color: #3B7A8C !important;
-  color: #ffffff !important;
+/* Flat section look (Concord-style structure, our Still Water palette):
+   no card chrome - a bold teal label + a thin teal divider per section. */
+.box, .box.box-solid, .box.box-primary, .box.box-warning,
+.box.box-info, .box.box-success {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  margin-bottom: 16px !important;
 }
-.box.box-primary, .box.box-warning,
-.box.box-info,    .box.box-success {
-  border-color: #dee2e6 !important;
-  border-top-color: #3B7A8C !important;
+.box > .box-header,
+.box.box-solid > .box-header {
+  background: transparent !important;
+  color: #2A5F70 !important;
+  padding: 2px 0 8px 0 !important;
+  border-bottom: 2px solid #3B7A8C !important;
+}
+.box > .box-header .box-title {
+  font-size: 18px !important;
+  font-weight: 700 !important;
+  color: #2A5F70 !important;
+}
+.box > .box-body {
+  padding: 12px 2px 2px 2px !important;
+}
+/* keep the collapse (+/-) control visible on the flat header */
+.box > .box-header .box-tools .btn {
+  color: #2A5F70 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+/* tighter, plugin-scale content padding */
+.content-wrapper .content {
+  padding: 10px 14px !important;
 }
 
-/* Box base */
-.box {
-  border-radius: 6px !important;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.08) !important;
-  margin-bottom: 20px !important;
+/* Segmented pill toggle for the aggregation choice (our palette) */
+#time_aggregation.shiny-options-group {
+  display: inline-flex;
+  border: 1px solid #3B7A8C;
+  border-radius: 999px;
+  overflow: hidden;
+  margin-top: 4px;
+}
+#time_aggregation .radio-inline {
+  margin: 0 !important;
+  padding: 6px 18px !important;
+  cursor: pointer;
+  color: #2A5F70;
+  font-weight: 600;
+}
+#time_aggregation .radio-inline + .radio-inline {
+  border-left: 1px solid #3B7A8C;
+}
+#time_aggregation .radio-inline input[type=radio] {
+  display: none;
+}
+#time_aggregation .radio-inline:has(input:checked) {
+  background: #3B7A8C;
+  color: #ffffff;
 }
 
 /* Header nav text */
@@ -733,10 +777,9 @@ ui <- dashboardPage(
                     "Focus on specific monitoring sites within your location.")
                 ),
                 column(6,
-                  selectInput("time_aggregation", "Combine measurements by",
-                    choices = c("Don't combine (raw data)" = "none",
-                                "Month" = "month"),
-                    selected = "month"),
+                  radioButtons("time_aggregation", "Combine measurements by",
+                    choices = c("Raw data" = "none", "Monthly" = "month"),
+                    selected = "month", inline = TRUE),
                   p(style = "font-size: 12px; color: #6c757d;",
                     "Averages the measurements within each period to reduce gaps and data size.")
                 )

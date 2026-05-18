@@ -1340,8 +1340,12 @@ server <- function(input, output, session) {
       parent_attrs <- lapply(names(query_fields), function(n) list(name = n, title = n))
 
       # Child ("Measurements") columns: drop state/county (carried by the
-      # parent) so attribute names stay unique across the context.
-      child_data  <- data[, setdiff(names(data), c("state", "county")), drop = FALSE]
+      # parent) so attribute names stay unique across the context. Also drop
+      # site_id: it is only needed server-side for filtering, and its cryptic
+      # code (e.g. "TDECWR…", "11NPS…") is what CODAP would otherwise show on
+      # map points. With it gone, site_name (the creek name) is the first
+      # Measurements attribute, so CODAP labels map points by creek.
+      child_data  <- data[, setdiff(names(data), c("state", "county", "site_id")), drop = FALSE]
       child_attrs <- lapply(names(child_data), function(n) list(name = n, title = n))
 
       # Flat items: each row carries the parent fields + its measurements.

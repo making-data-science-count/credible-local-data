@@ -3,11 +3,9 @@ water-data.R
 fips.R
 renv.lock
 renv
-app.R.bak
-aqs.ipynb
+*.bak
 .posit
 .claude
-Screenshot 2026-02-24 at 1.00.32 PM.png
 CLAUDE.md
 CONTRIBUTING.md
 CODAP_API_FIX.md

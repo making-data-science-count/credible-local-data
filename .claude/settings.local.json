@@ -37,7 +37,11 @@
       "Bash(git add *)",
       "Bash(git commit *)",
       "Bash(python3 -)",
-      "Bash(awk 'NR>=394 && NR<=476' app.R)"
+      "Bash(awk 'NR>=394 && NR<=476' app.R)",
+      "Bash(mkdir -p www)",
+      "Bash(git mv *)",
+      "Bash(curl -sL --fail -o www/iframe-phone.js \"https://unpkg.com/iframe-phone@1.4.0/dist/iframe-phone.js\")",
+      "Bash(git rm *)"
     ]
   }
 }

@@ -1,24 +1,9 @@
-# Install and load required packages (place this before other library() calls)
-cran_pkgs <- c(
-  "shiny","shinydashboard","DT","tidyverse","dataRetrieval",
-  "janitor","lubridate","promises","future","bslib"
-)
-
-missing_pkgs <- cran_pkgs[!cran_pkgs %in% rownames(installed.packages())]
-if (length(missing_pkgs) > 0) {
-  install.packages(missing_pkgs, dependencies = TRUE)
-}
-
-# Load packages
-invisible(lapply(cran_pkgs, function(p) require(p, character.only = TRUE)))
-
+# Package installation is managed by renv (see renv.lock); only load here.
 library(shiny)
 library(shinydashboard)
-library(DT)
 library(tidyverse)
 library(dataRetrieval)
 library(janitor)
-library(lubridate)
 library(promises)
 library(future)
 library(bslib)
@@ -76,6 +61,10 @@ fips_clean <- fips_xwalk %>%
 states_df <- fips_clean %>%
   distinct(state_name, state_fips) %>%
   arrange(state_name)
+
+# Used for the year-range slider; defaults to last year so the default
+# query returns a full year of data.
+current_year <- as.integer(format(Sys.Date(), "%Y"))
 
 # CREDIBLE Brand Colors
 # Primary (Coral Red): #E63946
@@ -211,6 +200,7 @@ body, .content-wrapper, .main-sidebar, .main-header {
   font-size: 14px;
   font-weight: 600;
   line-height: 1.4;
+  white-space: pre-line;  /* render \\n in status messages as line breaks */
 }
 
 /* Parameter info tooltip (the i icons) — instant, works inside the CODAP iframe */
@@ -364,8 +354,8 @@ a:hover {
 }
 "
 
-# Add resource path for logo
-addResourcePath("images", ".")
+# Static assets (logo, vendored JS) are served from the www/ directory,
+# which Shiny exposes automatically.
 
 # UI
 ui <- dashboardPage(
@@ -379,7 +369,9 @@ ui <- dashboardPage(
     # Include custom CSS
     tags$head(
       tags$style(HTML(custom_css)),
-      tags$script(src="https://unpkg.com/iframe-phone@1.4.0/dist/iframe-phone.js"),
+      # iframe-phone is vendored locally (www/iframe-phone.js) so the CODAP
+      # connection works on school networks that block CDNs.
+      tags$script(src = "iframe-phone.js"),
       tags$script(HTML("
         // Initialize CODAP connection using IFramePhone
         var codapPhone = null;
@@ -703,8 +695,8 @@ ui <- dashboardPage(
               tags$summary("More options (year range and extra parameters)"),
               tags$div(style = "padding-top: 12px;",
                 sliderInput("year_selection", "Year range",
-                  min = 1960, max = 2026,
-                  value = c(2025, 2025),
+                  min = 1960, max = current_year,
+                  value = c(current_year - 1, current_year - 1),
                   step = 1, sep = ""),
                 tags$label("Additional parameters",
                   style = "font-weight: 600; display: block; margin-bottom: 6px;"),
@@ -774,7 +766,8 @@ ui <- dashboardPage(
                     choices = c("All sites" = "all"),
                     selected = "all", multiple = TRUE),
                   p(style = "font-size: 12px; color: #6c757d;",
-                    "Focus on specific monitoring sites within your location.")
+                    "Focus on specific monitoring sites within your location. ",
+                    "The five most active sites are listed; “All sites” includes every site in your data.")
                 ),
                 column(6,
                   radioButtons("time_aggregation", "Combine measurements by",
@@ -828,7 +821,7 @@ ui <- dashboardPage(
             solidHeader = TRUE, width = 12,
             p("CREDIBLE Local Data helps middle and high school learners collect local water quality data and send it to CODAP to make graphs and explore patterns."),
             div(style = "text-align: center; padding: 8px 0 4px 0;",
-              tags$img(src = "images/credible-logo.png", height = "100px",
+              tags$img(src = "credible-logo.png", height = "100px",
                        style = "display: block; margin: 0 auto 8px auto; mix-blend-mode: multiply;"),
               tags$a(href = "https://projectcredible.com", target = "_blank",
                      style = "font-size: 12px; color: #3B7A8C;", "projectcredible.com")
@@ -856,18 +849,6 @@ server <- function(input, output, session) {
       loading_visible = FALSE,
       available_sites = NULL,
       fetch_start_time = NULL  # Track when fetch started for elapsed time display
-
-      ## ARCHIVED: Weather reactive values
-      ## To restore: Uncomment the sections below
-      # # Weather data
-      # weather_wide_data = NULL,
-      # weather_data_fetched = FALSE,
-      # weather_status = "Ready to fetch weather data...",
-      # weather_current_state_fips = "",
-      # weather_current_county_fips = "",
-      # weather_current_location = "",
-      # weather_loading_visible = FALSE,
-      # weather_available_stations = NULL
     )
     
     # Make loading_visible available as an input for the conditional panel
@@ -887,25 +868,68 @@ server <- function(input, output, session) {
     # ============================================================
     water_fetch_task <- ExtendedTask$new(function(qry, location) {
       future({
-        # These API calls run in a separate R process, allowing UI to update
-        wq_raw <- do.call(dataRetrieval::readWQPdata, qry)
-        meta_df <- do.call(dataRetrieval::whatWQPsites, qry)
+        # These API calls run in a separate R process, allowing UI to update.
+        # The Water Quality Portal rejects requests with multiple countycode
+        # values (HTTP 500), so query one county at a time and combine.
+        fetch_one <- function(code) {
+          q <- qry
+          q$countycode <- code
+          list(
+            wq = do.call(dataRetrieval::readWQPdata, q),
+            meta = do.call(dataRetrieval::whatWQPsites, q)
+          )
+        }
+        parts <- lapply(qry$countycode, fetch_one)
+        wq_raw <- dplyr::bind_rows(lapply(parts, function(p) p$wq))
+        meta_df <- dplyr::distinct(dplyr::bind_rows(lapply(parts, function(p) p$meta)))
         list(wq_raw = wq_raw, meta_df = meta_df, location = location)
       }, seed = TRUE)
     }) |> bslib::bind_task_button("fetch_data")
 
 
-    # Observer for elapsed time display during water quality fetch
+    # Observer for elapsed time display during water quality fetch.
+    # req() suspends the observer while idle, so the once-per-second tick
+    # only runs during an active fetch.
     observe({
+      req(values$loading_visible, values$fetch_start_time)
       invalidateLater(1000)  # Update every second
-      if (values$loading_visible && !is.null(values$fetch_start_time)) {
-        elapsed <- round(difftime(Sys.time(), values$fetch_start_time, units = "secs"))
-        values$status <- paste0("Requesting data from USGS Water Quality Portal... (", elapsed, " seconds)")
-      }
+      elapsed <- round(difftime(Sys.time(), values$fetch_start_time, units = "secs"))
+      values$status <- paste0("Requesting data from USGS Water Quality Portal... (", elapsed, " seconds)")
     })
 
-    # Observer for water quality task completion
-    observeEvent(water_fetch_task$result(), {
+    # Observer for water quality task completion (success or error).
+    # Keyed on status() rather than result(): result() rethrows the task's
+    # error, so using it as the event expression would crash the session
+    # whenever the API call fails. (ExtendedTask has no error() method;
+    # the error is retrieved by calling result() inside tryCatch.)
+    observeEvent(water_fetch_task$status(), {
+      task_status <- water_fetch_task$status()
+
+      if (task_status == "error") {
+        err_msg <- tryCatch({
+          water_fetch_task$result()
+          "Unknown error"
+        }, error = function(e) conditionMessage(e))
+        values$status <- paste0(
+          "Oops! Something went wrong while fetching data.\n\n",
+          "Technical details: ", err_msg, "\n\n",
+          "What you can try:\n",
+          "- Wait a moment and click 'Get Water Data' again\n",
+          "- Check your internet connection\n",
+          "- Try selecting a different county or smaller year range\n",
+          "- Ask your teacher for help if this keeps happening"
+        )
+        showNotification(
+          "There was a problem fetching data. Try again or select different options.",
+          type = "error", duration = 8
+        )
+        values$loading_visible <- FALSE
+        values$fetch_start_time <- NULL
+        return()
+      }
+
+      if (task_status != "success") return()
+
       result <- water_fetch_task$result()
       wq_raw <- result$wq_raw
       meta_df <- result$meta_df
@@ -947,6 +971,7 @@ server <- function(input, output, session) {
       # Process data following updated script logic
       lat_col <- grep("latitude", names(meta), value = TRUE)[1]
       lon_col <- grep("longitude", names(meta), value = TRUE)[1]
+      cnty_col <- grep("county_code", names(meta), value = TRUE)[1]
 
       wq_tidy <- wq_clean %>%
         transmute(
@@ -962,22 +987,59 @@ server <- function(input, output, session) {
           site_id = monitoring_location_identifier,
           site_name = monitoring_location_name,
           lat = .data[[lat_col]],
-          lon = .data[[lon_col]]
-        )
+          lon = .data[[lon_col]],
+          county_fips = if (is.na(cnty_col)) NA_character_
+                        else sprintf("%03d", suppressWarnings(as.integer(.data[[cnty_col]])))
+        ) %>%
+        # Resolve each site to its own county name so multi-county queries
+        # label every row correctly (not with the combined location string).
+        left_join(
+          fips_clean %>%
+            filter(state_fips == values$current_state_fips) %>%
+            select(county_fips, county_display),
+          by = "county_fips"
+        ) %>%
+        mutate(county = coalesce(county_display, location)) %>%
+        select(site_id, site_name, county, lat, lon)
 
       # Join samples with metadata
       wq_join <- wq_tidy %>%
         left_join(meta_trim, by = "site_id") %>%
-        relocate(site_name, lat, lon, .after = site_id)
+        relocate(site_name, county, lat, lon, .after = site_id)
 
-      # Standardise units: convert µg/L -> mg/L
+      # Standardise units in two steps so pivot_wider never averages values
+      # measured on different scales.
+      # Step 1: convert known unit variants to a canonical unit.
+      ug_units <- c("ug/l", "µg/l", "ug/L", "µg/L")
+      f_units  <- c("deg F", "deg f")
+      ms_units <- c("mS/cm", "ms/cm")
       wq_join <- wq_join %>%
         mutate(
-          value = if_else(unit %in% c("ug/l", "µg/l", "ug/L", "µg/L"),
-                          value / 1000, value),
-          unit = if_else(unit %in% c("ug/l", "µg/l", "ug/L", "µg/L"),
-                         "mg/L", unit)
+          value = case_when(
+            unit %in% ug_units ~ value / 1000,         # µg/L -> mg/L
+            unit %in% f_units  ~ (value - 32) * 5 / 9, # °F -> °C
+            unit %in% ms_units ~ value * 1000,         # mS/cm -> µS/cm
+            TRUE ~ value
+          ),
+          unit = case_when(
+            unit %in% ug_units ~ "mg/L",
+            unit %in% f_units  ~ "deg C",
+            unit %in% c(ms_units, "umho/cm") ~ "uS/cm", # umho/cm == uS/cm
+            TRUE ~ unit
+          )
         )
+
+      # Step 2: within each parameter, keep only the most common unit.
+      # Anything still in another unit can't be combined safely, so it is
+      # dropped (and counted for the status message).
+      n_before_units <- nrow(wq_join)
+      wq_join <- wq_join %>%
+        mutate(.unit_key = coalesce(unit, "(none)")) %>%
+        group_by(parameter) %>%
+        filter(.unit_key == names(which.max(table(.unit_key)))) %>%
+        ungroup() %>%
+        select(-.unit_key)
+      n_dropped_units <- n_before_units - nrow(wq_join)
 
       # Create long format
       values$long_data <- wq_join
@@ -994,10 +1056,7 @@ server <- function(input, output, session) {
           values_from = value,
           values_fn = function(x) mean(x, na.rm = TRUE)
         ) %>%
-        mutate(
-          state = input$state_selection,
-          county = location
-        ) %>%
+        mutate(state = input$state_selection) %>%
         select(state, county, site_id, site_name, lat, lon, date, everything())
 
       values$wide_data <- wq_wide
@@ -1016,9 +1075,13 @@ server <- function(input, output, session) {
       values$available_sites <- available_sites
       values$data_fetched <- TRUE
 
-      # Update site selector choices with informative labels
-      site_choices <- c("All sites" = "all",
-                        setNames(available_sites$site_id, available_sites$display_label))
+      # Update site selector choices with informative labels. The dropdown
+      # lists only the five most active sites; "All sites" covers every site.
+      n_sites_total <- length(unique(wq_join$site_id))
+      site_choices <- c(
+        setNames("all", paste0("All sites (", n_sites_total, " total)")),
+        setNames(available_sites$site_id, available_sites$display_label)
+      )
       updateSelectInput(session, "site_selection",
                         choices = site_choices,
                         selected = "all")
@@ -1026,10 +1089,18 @@ server <- function(input, output, session) {
       # Get unique parameters found in the data
       found_parameters <- unique(wq_join$parameter)
 
-      values$status <- paste("Data processing complete for", location, "! Found",
-                             nrow(wq_join), "measurements from",
-                             length(unique(wq_join$site_id)), "monitoring sites. Year range:", year_range_text,
-                             "- Parameters found:", paste(found_parameters, collapse = ", "))
+      unit_note <- if (n_dropped_units > 0) {
+        paste0(" (", n_dropped_units, " readings in nonstandard units were excluded.)")
+      } else {
+        ""
+      }
+      values$status <- paste0(
+        "Data processing complete for ", location, "! Found ",
+        nrow(wq_join), " measurements from ",
+        n_sites_total, " monitoring sites. Year range: ", year_range_text,
+        " - Parameters found: ", paste(found_parameters, collapse = ", "),
+        unit_note
+      )
 
       showNotification("Data fetched successfully!", type = "message", duration = 5)
 
@@ -1037,29 +1108,6 @@ server <- function(input, output, session) {
       values$loading_visible <- FALSE
       values$fetch_start_time <- NULL
     })
-
-    # Observer for water quality task errors
-    observeEvent(water_fetch_task$status(), {
-      if (water_fetch_task$status() == "error") {
-        err <- water_fetch_task$error()
-        values$status <- paste0(
-          "Oops! Something went wrong while fetching data.\n\n",
-          "Technical details: ", err$message, "\n\n",
-          "What you can try:\n",
-          "- Wait a moment and click 'Fetch Water Quality Data' again\n",
-          "- Check your internet connection\n",
-          "- Try selecting a different county or smaller year range\n",
-          "- Ask your teacher for help if this keeps happening"
-        )
-        showNotification(
-          "There was a problem fetching data. Try again or select different options.",
-          type = "error", duration = 8
-        )
-        values$loading_visible <- FALSE
-        values$fetch_start_time <- NULL
-      }
-    })
-
 
     # Update county choices when state changes
     observeEvent(input$state_selection, {
@@ -1087,25 +1135,6 @@ server <- function(input, output, session) {
       }
     })
     
-    # Initialize Knox County selection when app loads (since Tennessee is default)
-    observe({
-      if (input$state_selection == "Tennessee") {
-        # Trigger the county update for Tennessee on app load
-        isolate({
-          state_info <- states_df[states_df$state_name == "Tennessee", ]
-          if (nrow(state_info) > 0) {
-            counties_for_state <- fips_clean %>%
-              filter(state_fips == state_info$state_fips) %>%
-              arrange(county_name)
-
-            county_choices <- setNames(counties_for_state$county_display, counties_for_state$county_display)
-
-            updateSelectizeInput(session, "county_selection", choices = county_choices, selected = "Knox County")
-          }
-        })
-      }
-    })
-    
     # Show warning for large year ranges
     observeEvent(input$year_selection, {
       if (!is.null(input$year_selection) && length(input$year_selection) == 2) {
@@ -1114,41 +1143,6 @@ server <- function(input, output, session) {
           warning_text <- paste("Loading", year_range, "years of data may take 30-90 seconds depending on data availability.")
           showNotification(warning_text, type = "warning", duration = 6)
         }
-      }
-    })
-    
-    # Display current selection
-    output$location_display <- renderText({
-      if (input$state_selection != "" && !is.null(input$county_selection) && length(input$county_selection) > 0) {
-        if (length(input$county_selection) == 1) {
-          paste(input$county_selection, ",", input$state_selection)
-        } else {
-          paste0(paste(input$county_selection, collapse = ", "), ", ", input$state_selection)
-        }
-      } else {
-        "None selected"
-      }
-    })
-    
-    # Display FIPS codes
-    output$fips_display <- renderText({
-      if (input$state_selection != "" && !is.null(input$county_selection) && length(input$county_selection) > 0) {
-        # Find the county info for all selected counties
-        county_info <- fips_clean %>%
-          filter(state_name == input$state_selection,
-                 county_display %in% input$county_selection)
-
-        if (nrow(county_info) > 0) {
-          if (nrow(county_info) == 1) {
-            paste("State:", county_info$state_fips, "County:", county_info$county_fips, "Full:", county_info$full_fips)
-          } else {
-            paste0("State: ", county_info$state_fips[1], " | Counties: ", paste(county_info$county_fips, collapse = ", "))
-          }
-        } else {
-          "Codes not found"
-        }
-      } else {
-        "None selected"
       }
     })
     
@@ -1230,8 +1224,6 @@ server <- function(input, output, session) {
 
     
     # Clear/refresh removed: re-fetching with new selections replaces results.
-    
-    # NOTE: fetch_water_data() function removed - logic moved to ExtendedTask observers above
 
     # Status output
     output$status_text <- renderText({
@@ -1248,17 +1240,13 @@ server <- function(input, output, session) {
           values$wide_data %>% filter(site_id %in% input$site_selection)
         }
 
-        # Then apply time aggregation if selected
-        if (!is.null(input$time_aggregation) && input$time_aggregation != "none") {
+        # Then apply monthly aggregation if selected ("Raw data" and
+        # "Monthly" are the only choices the UI offers)
+        if (!is.null(input$time_aggregation) && input$time_aggregation == "month") {
           data <- data %>%
             mutate(
               date = as.Date(date),
-              time_period = case_when(
-                input$time_aggregation == "day" ~ as.character(date),
-                input$time_aggregation == "week" ~ as.character(floor_date(date, "week")),
-                input$time_aggregation == "month" ~ format(date, "%Y-%m"),
-                input$time_aggregation == "year" ~ format(date, "%Y")
-              )
+              time_period = format(date, "%Y-%m")
             ) %>%
             group_by(state, county, site_id, site_name, time_period) %>%
             summarise(
@@ -1275,25 +1263,13 @@ server <- function(input, output, session) {
       }
     })
     
-    # Data preview
-    output$preview_wide <- DT::renderDataTable({
-      data <- filtered_wide_data()
-      req(data)
-      display_data <- data %>% select(-any_of(c("site_id", "row_id")))
-      DT::datatable(display_data, options = list(
-        scrollX = TRUE,
-        pageLength = 3,
-        lengthMenu = list(c(3, 5, 10, 25, -1), c("3", "5", "10", "25", "All"))
-      ))
-    })
-    
     # Download handler
     output$download_wide <- downloadHandler(
       filename = function() {
         location_safe <- gsub("[^A-Za-z0-9]", "_", values$current_location)
         site_suffix <- if("all" %in% input$site_selection) "all_sites" else "selected_sites"
-        agg_suffix <- if(!is.null(input$time_aggregation) && input$time_aggregation != "none") {
-          paste0("_", input$time_aggregation, "ly")
+        agg_suffix <- if(!is.null(input$time_aggregation) && input$time_aggregation == "month") {
+          "_monthly"
         } else {
           ""
         }
@@ -1337,10 +1313,8 @@ server <- function(input, output, session) {
       } else {
         ""
       }
-      agg_label <- if (!is.null(input$time_aggregation) && input$time_aggregation != "none") {
-        switch(input$time_aggregation,
-          "day" = " (Daily)", "week" = " (Weekly)",
-          "month" = " (Monthly)", "year" = " (Yearly)", "")
+      agg_label <- if (!is.null(input$time_aggregation) && input$time_aggregation == "month") {
+        " (Monthly)"
       } else {
         ""
       }
@@ -1366,10 +1340,8 @@ server <- function(input, output, session) {
       } else {
         ""
       }
-      aggregation <- if (!is.null(input$time_aggregation) && input$time_aggregation != "none") {
-        switch(input$time_aggregation,
-          "day" = "Daily", "week" = "Weekly",
-          "month" = "Monthly", "year" = "Yearly", "None")
+      aggregation <- if (!is.null(input$time_aggregation) && input$time_aggregation == "month") {
+        "Monthly"
       } else {
         "None"
       }
@@ -1392,13 +1364,14 @@ server <- function(input, output, session) {
       )
       parent_attrs <- lapply(names(query_fields), function(n) list(name = n, title = n))
 
-      # Child ("Measurements") columns: drop state/county (carried by the
-      # parent) so attribute names stay unique across the context. Also drop
-      # site_id: it is only needed server-side for filtering, and its cryptic
-      # code (e.g. "TDECWR…", "11NPS…") is what CODAP would otherwise show on
-      # map points. With it gone, site_name (the creek name) is the first
-      # Measurements attribute, so CODAP labels map points by creek.
-      child_data  <- data[, setdiff(names(data), c("state", "county", "site_id")), drop = FALSE]
+      # Child ("Measurements") columns: drop state (carried by the parent)
+      # but keep county, which can differ per site in multi-county queries.
+      # Also drop site_id: it is only needed server-side for filtering, and
+      # its cryptic code (e.g. "TDECWR…", "11NPS…") is what CODAP would
+      # otherwise show on map points. site_name (the creek name) stays the
+      # first Measurements attribute, so CODAP labels map points by creek.
+      child_data  <- data[, setdiff(names(data), c("state", "site_id")), drop = FALSE] %>%
+        relocate(site_name)
       child_attrs <- lapply(names(child_data), function(n) list(name = n, title = n))
 
       # Flat items: each row carries the parent fields + its measurements.
@@ -1454,420 +1427,9 @@ server <- function(input, output, session) {
       }
     })
 
-    # =============================================================================
-    ## ARCHIVED: WEATHER & CLIMATE SERVER LOGIC - Focusing on Water Quality first
-    ## To restore: Remove the if(FALSE) wrapper
-    # =============================================================================
-    if(FALSE) {
-    # Update weather county choices when state changes
-    observeEvent(input$weather_state_selection, {
-      if (input$weather_state_selection != "") {
-        # Get state FIPS code
-        state_info <- states_df[states_df$state_name == input$weather_state_selection, ]
-        
-        if (nrow(state_info) > 0) {
-          # Filter counties for this state
-          counties_for_state <- fips_clean %>%
-            filter(state_fips == state_info$state_fips) %>%
-            arrange(county_name)
-          
-          county_choices <- c("Choose a county..." = "", 
-                              setNames(counties_for_state$county_display, counties_for_state$county_display))
-          
-          # Set default to Knox County if Tennessee is selected
-          default_county <- if(input$weather_state_selection == "Tennessee") "Knox County" else ""
-          
-        } else {
-          county_choices <- c("State not found" = "")
-          default_county <- ""
-        }
-        
-        updateSelectInput(session, "weather_county_selection", choices = county_choices, selected = default_county)
-      }
-    })
-    
-    # Initialize Knox County for weather when app loads
-    observe({
-      if (input$weather_state_selection == "Tennessee") {
-        isolate({
-          state_info <- states_df[states_df$state_name == "Tennessee", ]
-          if (nrow(state_info) > 0) {
-            counties_for_state <- fips_clean %>%
-              filter(state_fips == state_info$state_fips) %>%
-              arrange(county_name)
-            
-            county_choices <- c("Choose a county..." = "", 
-                                setNames(counties_for_state$county_display, counties_for_state$county_display))
-            
-            updateSelectInput(session, "weather_county_selection", choices = county_choices, selected = "Knox County")
-          }
-        })
-      }
-    })
-    
-    # Show warning for large year ranges (weather)
-    observeEvent(input$weather_year_selection, {
-      if (!is.null(input$weather_year_selection) && length(input$weather_year_selection) == 2) {
-        year_range <- input$weather_year_selection[2] - input$weather_year_selection[1] + 1
-        if (year_range > 3) {
-          warning_text <- paste("Loading", year_range, "years of weather data may take 30-90 seconds depending on data availability.")
-          showNotification(warning_text, type = "warning", duration = 6)
-        }
-      }
-    })
-    
-    # Display current weather selection
-    output$weather_location_display <- renderText({
-      if (input$weather_state_selection != "" && input$weather_county_selection != "") {
-        paste(input$weather_county_selection, ",", input$weather_state_selection)
-      } else {
-        "None selected"
-      }
-    })
-    
-    # Display weather FIPS codes  
-    output$weather_fips_display <- renderText({
-      if (input$weather_state_selection != "" && input$weather_county_selection != "") {
-        county_info <- fips_clean %>%
-          filter(state_name == input$weather_state_selection,
-                 county_display == input$weather_county_selection)
-        
-        if (nrow(county_info) > 0) {
-          paste("State:", county_info$state_fips, "County:", county_info$county_fips, "Full:", county_info$full_fips)
-        } else {
-          "Codes not found"
-        }
-      } else {
-        "None selected"
-      }
-    })
-    
-    # Weather data fetching logic
-    observeEvent(input$fetch_weather_data, {
-      
-      # Weather feature archived; this dead block never executes.
-      if (TRUE) {
-        showNotification("Weather data is currently unavailable (feature archived).",
-                         type = "error", duration = 10)
-        return()
-      }
-      
-      # Validate inputs
-      if (input$weather_state_selection == "" || input$weather_county_selection == "") {
-        showNotification("Please select both state and county", type = "error", duration = 5)
-        return()
-      }
-      
-      # Show loading indicator
-      values$weather_loading_visible <- TRUE
-      
-      # Get FIPS codes
-      county_info <- fips_clean %>%
-        filter(state_name == input$weather_state_selection,
-               county_display == input$weather_county_selection)
-      
-      if (nrow(county_info) == 0) {
-        showNotification("County not found in database. Please try again.", type = "error", duration = 5)
-        values$weather_loading_visible <- FALSE
-        return()
-      }
-      
-      values$weather_current_state_fips <- county_info$state_fips
-      values$weather_current_county_fips <- county_info$county_fips
-      values$weather_current_location <- paste(input$weather_county_selection, input$weather_state_selection, sep = ", ")
-      
-      fetch_weather_data()
-    })
-    
-    # Weather refresh/clear functionality
-    observeEvent(input$refresh_weather_data, {
-      # Reset all weather reactive values
-      values$weather_wide_data <- NULL
-      values$weather_data_fetched <- FALSE
-      values$weather_status <- "Ready to fetch weather data..."
-      values$weather_current_state_fips <- ""
-      values$weather_current_county_fips <- ""
-      values$weather_current_location <- ""
-      values$weather_loading_visible <- FALSE
-      values$weather_available_stations <- NULL
-      
-      # Reset weather input selections
-      updateSelectInput(session, "weather_state_selection", selected = "")
-      updateSelectInput(session, "weather_county_selection", 
-                        choices = c("Choose a county..." = ""),
-                        selected = "")
-      updateSliderInput(session, "weather_year_selection", value = c(2023, 2024))
-      updateSelectInput(session, "weather_dataset", selected = "terraclimate")
-      updateCheckboxGroupInput(session, "weather_parameters_primary", 
-                               selected = c("tmax", "tmin", "ppt"))
-      updateCheckboxGroupInput(session, "weather_parameters_additional", 
-                               selected = c())
-      updateSelectInput(session, "weather_station_selection", 
-                        choices = c("All parameters" = "all"),
-                        selected = "all")
-      
-      showNotification("Weather interface refreshed and data cleared!", type = "message", duration = 3)
-    })
-    
-    # Weather data fetching function
-    fetch_weather_data <- function() {
-      
-      # Update status
-      values$weather_status <- "Fetching weather data using climateR..."
-      
-      tryCatch({
-        # Combine parameter selections
-        selected_parameters <- c(input$weather_parameters_primary, input$weather_parameters_additional)
-        
-        # Validate parameter selection
-        if (is.null(selected_parameters) || length(selected_parameters) == 0) {
-          showNotification("Please select at least one weather parameter", type = "error", duration = 5)
-          values$weather_loading_visible <- FALSE
-          return()
-        }
-        
-        # Validate year selection
-        if (is.null(input$weather_year_selection) || length(input$weather_year_selection) != 2) {
-          showNotification("Please select a year range", type = "error", duration = 5)
-          values$weather_loading_visible <- FALSE
-          return()
-        }
-        
-        # Get the county FIPS code for climateR
-        county_fips <- values$weather_current_county_fips
-        if (is.null(county_fips) || county_fips == "") {
-          showNotification("County FIPS code not found", type = "error", duration = 5)
-          values$weather_loading_visible <- FALSE
-          return()
-        }
-        
-        # Determine start and end date from selected year range
-        start_year <- input$weather_year_selection[1]
-        end_year <- input$weather_year_selection[2]
-        start_date <- paste0(start_year, "-01-01")
-        end_date <- paste0(end_year, "-12-31")
-        
-        # Create year range text
-        if (start_year == end_year) {
-          year_range_text <- paste("Year", start_year)
-        } else {
-          year_range_text <- paste("Years", start_year, "-", end_year)
-        }
-        
-        values$weather_status <- paste("Fetching", input$weather_dataset, "data for", values$weather_current_location, "-", year_range_text, "- Parameters:", paste(selected_parameters, collapse = ", "))
-        
-        # Weather feature archived; AOI lookup disabled.
-        county_aoi <- NULL
-        
-        # Update status to show requests are running
-        values$weather_status <- paste("Making requests to", input$weather_dataset, "for", values$weather_current_location, "for", length(selected_parameters), "parameters...")
-        
-        # Fetch data based on selected dataset
-        weather_data <- switch(input$weather_dataset,
-          "terraclimate" = {
-            getTerraClim(AOI = county_aoi, 
-                        param = selected_parameters,
-                        startDate = start_date,
-                        endDate = end_date)
-          },
-          "gridmet" = {
-            getGridMET(AOI = county_aoi,
-                      param = selected_parameters,
-                      startDate = start_date,
-                      endDate = end_date)
-          },
-          "daymet" = {
-            getDaymet(AOI = county_aoi,
-                     param = selected_parameters,
-                     start = start_year,
-                     end = end_year)
-          }
-        )
-        
-        # Convert SpatRaster to data frame for display
-        if (!is.null(weather_data) && class(weather_data)[1] == "SpatRaster") {
-          # Extract data and convert to long format
-          weather_df <- as.data.frame(weather_data, xy = TRUE)
-          weather_long <- weather_df %>%
-            pivot_longer(cols = -c(x, y), names_to = "variable_date", values_to = "value") %>%
-            mutate(
-              date = str_extract(variable_date, "\\d{4}_\\d{2}_\\d{2}|\\d{4}\\d{2}\\d{2}"),
-              parameter = str_remove(variable_date, "_\\d{4}_\\d{2}_\\d{2}|_\\d{4}\\d{2}\\d{2}"),
-              date = case_when(
-                str_detect(date, "_") ~ as.Date(date, format = "%Y_%m_%d"),
-                TRUE ~ as.Date(date, format = "%Y%m%d")
-              )
-            ) %>%
-            select(x, y, date, parameter, value) %>%
-            arrange(date, parameter)
-          
-          # Summarize by county (take mean across pixels)
-          weather_summary <- weather_long %>%
-            group_by(date, parameter) %>%
-            summarise(
-              mean_value = round(mean(value, na.rm = TRUE), 3),
-              min_value = round(min(value, na.rm = TRUE), 3),
-              max_value = round(max(value, na.rm = TRUE), 3),
-              .groups = "drop"
-            ) %>%
-            mutate(
-              location = values$weather_current_location,
-              dataset = input$weather_dataset
-            )
-          
-          values$weather_wide_data <- weather_summary
-        } else {
-          # If no data returned, create empty data frame
-          values$weather_wide_data <- data.frame(
-            date = as.Date(character()),
-            parameter = character(),
-            mean_value = numeric(),
-            min_value = numeric(),
-            max_value = numeric(),
-            location = character(),
-            dataset = character()
-          )
-        }
-        
-        values$weather_data_fetched <- TRUE
-        
-        # Get available parameters for selector (simplified - using parameters as "stations")
-        available_parameters <- data.frame(
-          parameter_id = selected_parameters,
-          parameter_name = selected_parameters,
-          stringsAsFactors = FALSE
-        )
-        
-        values$weather_available_stations <- available_parameters
-        
-        # Update parameter selector choices
-        parameter_choices <- c("All parameters" = "all", 
-                              setNames(available_parameters$parameter_id, available_parameters$parameter_name))
-        updateSelectInput(session, "weather_station_selection", 
-                          label = "Select Parameter(s):",
-                          choices = parameter_choices,
-                          selected = "all")
-        
-        # Calculate summary statistics
-        data_rows <- nrow(values$weather_wide_data)
-        unique_dates <- length(unique(values$weather_wide_data$date))
-        unique_params <- length(unique(values$weather_wide_data$parameter))
-        
-        values$weather_status <- paste("Data loaded for", values$weather_current_location, "!", 
-                                      data_rows, "records with", unique_params, "parameters across", unique_dates, "time periods from", input$weather_dataset)
-        
-        showNotification(paste("Weather data successfully loaded!", data_rows, "records retrieved"), type = "message", duration = 5)
-        
-        # Hide loading indicator
-        values$weather_loading_visible <- FALSE
-        
-      }, error = function(e) {
-        values$weather_status <- paste("Error:", e$message)
-        showNotification(paste("Error fetching weather data:", e$message), type = "error", duration = 8)
-        values$weather_loading_visible <- FALSE
-      })
-    }
-    
-    # Weather status output
-    output$weather_status_text <- renderText({
-      values$weather_status
-    })
-    
-    # Weather data filtering based on parameter selection
-    filtered_weather_data <- reactive({
-      if (!is.null(values$weather_wide_data)) {
-        if ("all" %in% input$weather_station_selection || is.null(input$weather_station_selection)) {
-          values$weather_wide_data
-        } else {
-          values$weather_wide_data %>% filter(parameter %in% input$weather_station_selection)
-        }
-      }
-    })
-    
-    # Weather data preview
-    output$weather_preview_wide <- DT::renderDataTable({
-      data <- filtered_weather_data()
-      if (!is.null(data)) {
-        DT::datatable(data, options = list(scrollX = TRUE, pageLength = 10))
-      }
-    })
-    
-    # Weather download handler
-    output$download_weather_data <- downloadHandler(
-      filename = function() {
-        location_safe <- gsub("[^A-Za-z0-9]", "_", values$weather_current_location)
-        station_suffix <- if("all" %in% input$weather_station_selection) "all_stations" else "selected_stations"
-        paste0("weather_data_", location_safe, "_", station_suffix, "_", Sys.Date(), ".csv")
-      },
-      content = function(file) {
-        data <- filtered_weather_data()
-        if (!is.null(data)) {
-          write_csv(data, file)
-        }
-      }
-    )
-    
-    # =============================================================================
-    # CODAP EXPORT SERVER LOGIC - Weather & Climate
-    # =============================================================================
-    
-    # observeEvent for "Send to CODAP" button (Weather & Climate)
-    observeEvent(input$send_weather_to_codap, {
-      # Get the filtered data
-      data <- filtered_weather_data()
-      
-      # Validate that data exists
-      if (is.null(data) || nrow(data) == 0) {
-        showNotification("No data available to send to CODAP. Please fetch weather data first.", 
-                         type = "error", duration = 5)
-        return()
-      }
-      
-      # Get dataset name from input
-      dataset_name <- input$codap_weather_dataset_name
-      if (is.null(dataset_name) || dataset_name == "") {
-        dataset_name <- "WeatherData"
-      }
-      
-      # Convert data frame columns into CODAP attributes format
-      # Format: list(name = colName, title = colName)
-      attributes <- lapply(names(data), function(col_name) {
-        list(
-          name = col_name,
-          title = col_name
-        )
-      })
-      
-      # Convert data frame rows into a list of cases
-      # Each case is a list of values corresponding to the attributes
-      cases <- lapply(seq_len(nrow(data)), function(i) {
-        row_data <- as.list(data[i, ])
-        # Convert any NA values to null for JSON serialization
-        row_data <- lapply(row_data, function(x) {
-          if (is.na(x)) return(NULL) else return(x)
-        })
-        return(row_data)
-      })
-      
-      # Send data to JavaScript via session$sendCustomMessage()
-      session$sendCustomMessage(
-        type = "sendToCODAP",
-        message = list(
-          datasetName = dataset_name,
-          attributes = attributes,
-          cases = cases
-        )
-      )
-      
-      # Show initial notification
-      showNotification(
-        paste("Sending", nrow(data), "rows to CODAP as dataset:", dataset_name),
-        type = "message",
-        duration = 3
-      )
-    })
-    } # End if(FALSE) - Weather & Climate server logic archived
+    # Archived features (air quality, weather/climate) live in
+    # archived-tabs.R, not in this file.
 }
 
 # Run the application
-shinyApp(ui = ui, server = server) 
+shinyApp(ui = ui, server = server)

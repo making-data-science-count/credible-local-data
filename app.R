@@ -872,18 +872,50 @@ server <- function(input, output, session) {
         # These API calls run in a separate R process, allowing UI to update.
         # The Water Quality Portal rejects requests with multiple countycode
         # values (HTTP 500), so query one county at a time and combine.
-        fetch_one <- function(code) {
+        #
+        # Primary service: WQX 3.0 — the only WQP route to USGS data newer
+        # than March 2024 (legacy services stopped receiving USGS updates
+        # then). Its result profile carries site metadata (name, lat/lon,
+        # county) on every row, so it needs no separate station request.
+        # WQX 3.0 is still labeled beta, so if any request fails the whole
+        # fetch falls back to the legacy services. All-or-nothing: the two
+        # services use different column names, so counties must never be
+        # mixed across services in one result.
+        fetch_counties <- function(fetch_county) {
+          parts <- lapply(qry$countycode, fetch_county)
+          list(
+            wq_raw = dplyr::bind_rows(lapply(parts, function(p) p$wq)),
+            meta_df = dplyr::distinct(dplyr::bind_rows(lapply(parts, function(p) p$meta)))
+          )
+        }
+        # Stamp every row with the county FIPS we queried for: the query is
+        # the authoritative county (WQX3 rows often have empty county
+        # metadata), and tidy_wq_sites() prefers this stamp.
+        stamp_county <- function(df, code) {
+          df$credible_county_fips <- sub("^US:[0-9]+:", "", code)
+          df
+        }
+        wqx3_county <- function(code) {
+          q <- qry
+          q$countycode <- code
+          q$service <- "ResultWQX3"
+          q$dataProfile <- "basicPhysChem"
+          wq <- stamp_county(do.call(dataRetrieval::readWQPdata, q), code)
+          list(wq = wq, meta = wq)
+        }
+        legacy_county <- function(code) {
           q <- qry
           q$countycode <- code
           list(
             wq = do.call(dataRetrieval::readWQPdata, q),
-            meta = do.call(dataRetrieval::whatWQPsites, q)
+            meta = stamp_county(do.call(dataRetrieval::whatWQPsites, q), code)
           )
         }
-        parts <- lapply(qry$countycode, fetch_one)
-        wq_raw <- dplyr::bind_rows(lapply(parts, function(p) p$wq))
-        meta_df <- dplyr::distinct(dplyr::bind_rows(lapply(parts, function(p) p$meta)))
-        list(wq_raw = wq_raw, meta_df = meta_df, location = location)
+        fetched <- tryCatch(
+          fetch_counties(wqx3_county),
+          error = function(e) fetch_counties(legacy_county)
+        )
+        list(wq_raw = fetched$wq_raw, meta_df = fetched$meta_df, location = location)
       }, seed = TRUE)
     }) |> bslib::bind_task_button("fetch_data")
 

@@ -28,3 +28,20 @@ test_that("unpadded county codes are normalized before matching", {
   out <- tidy_wq_sites(make_meta(c("93", "9")), "loc", "47", make_fips_clean())
   expect_identical(out$county, c("Knox County", "Blount County"))
 })
+
+test_that("the fetch-time county stamp takes precedence over county_code", {
+  # county_code says Anderson (001) but the stamp says Knox/Blount; the
+  # stamp wins because the queried county is authoritative
+  meta <- make_meta(c("001", "001")) %>%
+    mutate(credible_county_fips = c("093", "009"))
+  out <- tidy_wq_sites(meta, "loc", "47", make_fips_clean())
+  expect_identical(out$county, c("Knox County", "Blount County"))
+})
+
+test_that("duplicate site rows collapse to one site (WQX3-style metadata)", {
+  # In the WQX3 path the result frame doubles as metadata, so each site
+  # appears once per measurement
+  meta <- bind_rows(make_meta(), make_meta(), make_meta())
+  out <- tidy_wq_sites(meta, "loc", "47", make_fips_clean())
+  expect_identical(nrow(out), 2L)
+})

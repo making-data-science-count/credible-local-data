@@ -5,37 +5,62 @@
 # when the app starts; the server calls process_wq_result() from the
 # fetch-completion observer.
 
+# Resolve the first column present in a data frame from a list of
+# candidates. The legacy WQP and WQX 3.0 profiles use different names for
+# the same fields (after janitor::clean_names), so every tidy function
+# resolves its columns instead of hardcoding one schema.
+wq_col <- function(df, candidates) {
+  hit <- intersect(candidates, names(df))
+  if (length(hit) == 0) NA_character_ else hit[1]
+}
+
 # Tidy raw WQP sample results into one row per measurement. Characteristic
 # names are collapsed to the student-facing labels (see R/wq-parameters.R)
 # so synonymous characteristics share one column after pivoting.
 tidy_wq_samples <- function(wq_clean) {
+  id_col   <- wq_col(wq_clean, c("location_identifier",          # WQX 3.0
+                                 "monitoring_location_identifier"))  # legacy
+  char_col <- wq_col(wq_clean, c("result_characteristic", "characteristic_name"))
+  val_col  <- wq_col(wq_clean, c("result_measure", "result_measure_value"))
+  unit_col <- wq_col(wq_clean, c("result_measure_unit", "result_measure_measure_unit_code"))
+
   wq_clean %>%
     transmute(
-      site_id = monitoring_location_identifier,
+      site_id = .data[[id_col]],
       date = activity_start_date,
-      parameter = normalize_wq_parameter(characteristic_name),
-      value = as.numeric(result_measure_value),
-      unit = result_measure_measure_unit_code
+      parameter = normalize_wq_parameter(.data[[char_col]]),
+      value = as.numeric(.data[[val_col]]),
+      unit = .data[[unit_col]]
     )
 }
 
 # Tidy WQP site metadata and resolve each site to its own county name so
 # multi-county queries label every row correctly (not with the combined
 # location string, which is the fallback when the county can't be resolved).
+# `meta` is either a legacy station frame (one row per site) or a WQX 3.0
+# result frame (site metadata repeated on every measurement row — hence the
+# distinct()).
 tidy_wq_sites <- function(meta, location, state_fips, fips_clean) {
-  lat_col <- grep("latitude", names(meta), value = TRUE)[1]
-  lon_col <- grep("longitude", names(meta), value = TRUE)[1]
-  cnty_col <- grep("county_code", names(meta), value = TRUE)[1]
+  id_col   <- wq_col(meta, c("location_identifier", "monitoring_location_identifier"))
+  name_col <- wq_col(meta, c("location_name", "monitoring_location_name"))
+  lat_col  <- grep("latitude", names(meta), value = TRUE)[1]
+  lon_col  <- grep("longitude", names(meta), value = TRUE)[1]
+  # Prefer the county stamped at fetch time (the queried county is
+  # authoritative; WQX3 rows often have empty county metadata), then fall
+  # back to whatever county code the profile carries.
+  cnty_col <- wq_col(meta, "credible_county_fips")
+  if (is.na(cnty_col)) cnty_col <- grep("county_code", names(meta), value = TRUE)[1]
 
   meta %>%
     transmute(
-      site_id = monitoring_location_identifier,
-      site_name = monitoring_location_name,
+      site_id = .data[[id_col]],
+      site_name = .data[[name_col]],
       lat = .data[[lat_col]],
       lon = .data[[lon_col]],
       county_fips = if (is.na(cnty_col)) NA_character_
                     else sprintf("%03d", suppressWarnings(as.integer(.data[[cnty_col]])))
     ) %>%
+    distinct(site_id, .keep_all = TRUE) %>%
     left_join(
       fips_clean %>%
         filter(state_fips == .env$state_fips) %>%

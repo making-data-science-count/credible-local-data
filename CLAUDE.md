@@ -23,7 +23,7 @@ Or in RStudio: Open `app.R` and click "Run App".
 ```sh
 Rscript -e 'testthat::test_dir("tests/testthat")'
 ```
-The suite covers the functions in `R/` with synthetic cases plus a saved real API response in `tests/testthat/fixtures/`. Regenerate the fixtures with `Rscript tests/capture-fixtures.R` (hits the live API).
+The suite covers the functions in `R/` with synthetic cases plus saved real API responses in `tests/testthat/fixtures/` (one fixture per schema: WQX 3.0 and legacy). Regenerate fixtures with `Rscript tests/capture-fixtures.R` (hits the live API).
 
 A quick smoke test after app.R changes:
 ```sh
@@ -52,7 +52,10 @@ No API credentials are required for the water quality features. (The archived ai
 
 ### Async Fetch Pattern (ExtendedTask)
 The fetch runs in a separate R process via `ExtendedTask` + `future::plan(multisession)` so the UI stays responsive, with `bslib::bind_task_button()` disabling the button while running:
-- `water_fetch_task` calls `dataRetrieval::readWQPdata()` and `whatWQPsites()` inside `future()` — **one request per county**, results combined with `bind_rows()`, because the WQP API returns HTTP 500 when given multiple `countycode` values (verified June 2026; repeated params and semicolon-delimited both fail)
+- **One request per county**, results combined with `bind_rows()`, because the WQP API returns HTTP 500 when given multiple `countycode` values (verified June 2026; repeated params and semicolon-delimited both fail)
+- **Primary service: WQX 3.0** (`readWQPdata(service = "ResultWQX3", dataProfile = "basicPhysChem")`) — the only WQP route to USGS data newer than March 2024 (legacy services stopped receiving USGS updates then; verified empirically June 2026). The WQX3 result profile carries site metadata (name, lat/lon) on every row, so it needs no separate station request — the result frame is passed as `meta_df` too.
+- **Fallback: legacy services** (`readWQPdata()` + `whatWQPsites()`) if any WQX3 request fails (WQX3 is still labeled beta). The fallback is **all-or-nothing across counties** — never mix services in one fetch, because the two schemas have different column names.
+- **County stamping**: every fetched row is stamped with `credible_county_fips` from the query it came from. The queried county is authoritative — WQX3 rows often have *empty* county metadata — and `tidy_wq_sites()` prefers the stamp over the profile's own county column.
 - **One observer keyed on `water_fetch_task$status()`** handles both success and error. Critical: `ExtendedTask` has no `error()` method, and `result()` *rethrows* the task's error — so never use `result()` as an event expression (it would crash the session on API failure). Errors are retrieved by calling `result()` inside `tryCatch`.
 - An elapsed-time observer (gated by `req(values$loading_visible, ...)` so it only ticks during a fetch) updates the status text every second
 
@@ -64,9 +67,9 @@ WQP characteristic names are exact-match, and most data is recorded under names 
 - Only same-quantity/same-basis synonyms are merged; "Nitrate as N" vs "Nitrate" (as NO3) are intentionally NOT merged
 
 ### Data Processing (R/process-wq.R, called from the success branch)
-`process_wq_result()` orchestrates the steps:
+`process_wq_result()` orchestrates; every step is schema-aware via `wq_col()` (column-name candidates for both WQX3 and legacy profiles):
 1. Raw data cleaned with `janitor::clean_names()`
-2. Site metadata joined: site_name, **per-site county** (resolved from the WQP `county_code` through the FIPS crosswalk, so multi-county queries label each row with its actual county), lat, lon
+2. Site metadata joined: site_name, **per-site county** (from the fetch-time county stamp through the FIPS crosswalk, so multi-county queries label each row with its actual county), lat, lon
 3. Unit standardization in two steps (`standardize_wq_units()`):
    - Convert known variants to a canonical unit: µg/L→mg/L, °F→°C, mS/cm→µS/cm, umho/cm→µS/cm
    - Within each parameter, keep only the most common unit (case-insensitive key, so "mg/L" and "mg/l" count as one); dropped rows are counted and reported in the status message
@@ -140,11 +143,12 @@ observeEvent(task$status(), {
 ## Common Gotchas
 
 1. **County selection initialization**: Tennessee/Knox County is the hardcoded default (UI `selected=` values and the `observeEvent(input$state_selection)` county updater).
-2. **Multi-county queries**: `input$county_selection` is a vector; FIPS codes are built as `paste0("US:", state_fips, ":", county_fips)` vectors, but the WQP API must be queried one county at a time (see Async Fetch Pattern). Each row's `county` column comes from site metadata, not the combined location string.
+2. **Multi-county queries**: `input$county_selection` is a vector; FIPS codes are built as `paste0("US:", state_fips, ":", county_fips)` vectors, but the WQP API must be queried one county at a time (see Async Fetch Pattern). Each row's `county` column comes from the fetch-time county stamp, not the combined location string.
 3. **Mixed units**: WQP returns the same parameter in different units (e.g., temperature in both °C and °F). Convert known variants first, then the modal-unit filter drops the rest — check this when adding new parameters.
-4. **Year range warnings**: ranges > 3 years trigger a notification about slow fetches.
-5. **NA handling in CODAP export**: NA must become NULL (`if (length(x) == 1 && is.na(x)) NULL else x`) or CODAP receives invalid JSON.
-6. **`"all" %in% input$site_selection`**: the site filter treats "all" anywhere in the selection as "no filtering".
+4. **WQX3 metadata is patchy**: county code/name fields are often empty strings in WQX3 result rows, and the WQX3 services print a "use with caution" beta warning. Don't rely on WQX3 county metadata (use the stamp) and keep the legacy fallback intact.
+5. **Year range warnings**: ranges > 3 years trigger a notification about slow fetches.
+6. **NA handling in CODAP export**: NA must become NULL (`if (length(x) == 1 && is.na(x)) NULL else x`) or CODAP receives invalid JSON.
+7. **`"all" %in% input$site_selection`**: the site filter treats "all" anywhere in the selection as "no filtering".
 
 ## File Structure
 

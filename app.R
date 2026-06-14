@@ -844,6 +844,7 @@ server <- function(input, output, session) {
       data_fetched = FALSE,
       status = "Ready to fetch water quality data...",
       current_state_fips = "",
+      current_state_name = "",
       current_county_fips = "",
       current_location = "",
       loading_visible = FALSE,
@@ -964,141 +965,45 @@ server <- function(input, output, session) {
         return()
       }
 
-      # Clean names
-      wq_clean <- wq_raw %>% janitor::clean_names()
-      meta <- meta_df %>% janitor::clean_names()
+      # Full processing pipeline (cleaning, county resolution, unit
+      # standardisation, pivot to wide) lives in R/process-wq.R so it can
+      # be unit tested.
+      processed <- process_wq_result(
+        wq_raw     = wq_raw,
+        meta_df    = meta_df,
+        location   = location,
+        state_fips = values$current_state_fips,
+        state_name = values$current_state_name,
+        fips_clean = fips_clean
+      )
 
-      # Process data following updated script logic
-      lat_col <- grep("latitude", names(meta), value = TRUE)[1]
-      lon_col <- grep("longitude", names(meta), value = TRUE)[1]
-      cnty_col <- grep("county_code", names(meta), value = TRUE)[1]
-
-      wq_tidy <- wq_clean %>%
-        transmute(
-          site_id = monitoring_location_identifier,
-          date = activity_start_date,
-          parameter = characteristic_name,
-          value = as.numeric(result_measure_value),
-          unit = result_measure_measure_unit_code
-        )
-
-      meta_trim <- meta %>%
-        transmute(
-          site_id = monitoring_location_identifier,
-          site_name = monitoring_location_name,
-          lat = .data[[lat_col]],
-          lon = .data[[lon_col]],
-          county_fips = if (is.na(cnty_col)) NA_character_
-                        else sprintf("%03d", suppressWarnings(as.integer(.data[[cnty_col]])))
-        ) %>%
-        # Resolve each site to its own county name so multi-county queries
-        # label every row correctly (not with the combined location string).
-        left_join(
-          fips_clean %>%
-            filter(state_fips == values$current_state_fips) %>%
-            select(county_fips, county_display),
-          by = "county_fips"
-        ) %>%
-        mutate(county = coalesce(county_display, location)) %>%
-        select(site_id, site_name, county, lat, lon)
-
-      # Join samples with metadata
-      wq_join <- wq_tidy %>%
-        left_join(meta_trim, by = "site_id") %>%
-        relocate(site_name, county, lat, lon, .after = site_id)
-
-      # Standardise units in two steps so pivot_wider never averages values
-      # measured on different scales.
-      # Step 1: convert known unit variants to a canonical unit.
-      ug_units <- c("ug/l", "µg/l", "ug/L", "µg/L")
-      f_units  <- c("deg F", "deg f")
-      ms_units <- c("mS/cm", "ms/cm")
-      wq_join <- wq_join %>%
-        mutate(
-          value = case_when(
-            unit %in% ug_units ~ value / 1000,         # µg/L -> mg/L
-            unit %in% f_units  ~ (value - 32) * 5 / 9, # °F -> °C
-            unit %in% ms_units ~ value * 1000,         # mS/cm -> µS/cm
-            TRUE ~ value
-          ),
-          unit = case_when(
-            unit %in% ug_units ~ "mg/L",
-            unit %in% f_units  ~ "deg C",
-            unit %in% c(ms_units, "umho/cm") ~ "uS/cm", # umho/cm == uS/cm
-            TRUE ~ unit
-          )
-        )
-
-      # Step 2: within each parameter, keep only the most common unit.
-      # Anything still in another unit can't be combined safely, so it is
-      # dropped (and counted for the status message).
-      n_before_units <- nrow(wq_join)
-      wq_join <- wq_join %>%
-        mutate(.unit_key = coalesce(unit, "(none)")) %>%
-        group_by(parameter) %>%
-        filter(.unit_key == names(which.max(table(.unit_key)))) %>%
-        ungroup() %>%
-        select(-.unit_key)
-      n_dropped_units <- n_before_units - nrow(wq_join)
-
-      # Create long format
-      values$long_data <- wq_join
-
-      # Create wide format. Drop `unit` BEFORE pivoting so it is not treated as
-      # an id column (different parameters have different units, which would
-      # otherwise split each parameter onto its own row). Use values_fn to
-      # average multiple same-day samples so the parameter columns stay atomic
-      # numeric instead of becoming list-columns.
-      wq_wide <- wq_join %>%
-        select(-unit) %>%
-        pivot_wider(
-          names_from = parameter,
-          values_from = value,
-          values_fn = function(x) mean(x, na.rm = TRUE)
-        ) %>%
-        mutate(state = input$state_selection) %>%
-        select(state, county, site_id, site_name, lat, lon, date, everything())
-
-      values$wide_data <- wq_wide
-
-      # Get top 5 most active sites (by measurement count)
-      available_sites <- wq_join %>%
-        group_by(site_id, site_name) %>%
-        summarise(n_measurements = n(), .groups = "drop") %>%
-        arrange(desc(n_measurements)) %>%
-        slice_head(n = 5) %>%
-        mutate(
-          # Create informative label with measurement count
-          display_label = paste0(site_name, " (", n_measurements, " measurements)")
-        )
-
-      values$available_sites <- available_sites
+      values$long_data <- processed$long_data
+      values$wide_data <- processed$wide_data
+      values$available_sites <- processed$available_sites
       values$data_fetched <- TRUE
 
       # Update site selector choices with informative labels. The dropdown
       # lists only the five most active sites; "All sites" covers every site.
-      n_sites_total <- length(unique(wq_join$site_id))
       site_choices <- c(
-        setNames("all", paste0("All sites (", n_sites_total, " total)")),
-        setNames(available_sites$site_id, available_sites$display_label)
+        setNames("all", paste0("All sites (", processed$n_sites_total, " total)")),
+        setNames(processed$available_sites$site_id,
+                 processed$available_sites$display_label)
       )
       updateSelectInput(session, "site_selection",
                         choices = site_choices,
                         selected = "all")
 
-      # Get unique parameters found in the data
-      found_parameters <- unique(wq_join$parameter)
-
-      unit_note <- if (n_dropped_units > 0) {
-        paste0(" (", n_dropped_units, " readings in nonstandard units were excluded.)")
+      unit_note <- if (processed$n_dropped_units > 0) {
+        paste0(" (", processed$n_dropped_units,
+               " readings in nonstandard units were excluded.)")
       } else {
         ""
       }
       values$status <- paste0(
         "Data processing complete for ", location, "! Found ",
-        nrow(wq_join), " measurements from ",
-        n_sites_total, " monitoring sites. Year range: ", year_range_text,
-        " - Parameters found: ", paste(found_parameters, collapse = ", "),
+        nrow(processed$long_data), " measurements from ",
+        processed$n_sites_total, " monitoring sites. Year range: ", year_range_text,
+        " - Parameters found: ", paste(processed$found_parameters, collapse = ", "),
         unit_note
       )
 
@@ -1180,8 +1085,11 @@ server <- function(input, output, session) {
         return()
       }
 
-      # Store state FIPS (same for all counties in a state)
+      # Store state FIPS (same for all counties in a state) and the state
+      # name as fetched, so results stay labeled correctly even if the
+      # user changes the dropdowns while the fetch is running
       values$current_state_fips <- county_info$state_fips[1]
+      values$current_state_name <- input$state_selection
 
       # Store county FIPS as a vector for multiple counties
       values$current_county_fips <- county_info$county_fips
@@ -1205,7 +1113,9 @@ server <- function(input, output, session) {
 
       qry <- list(
         countycode = county_codes,
-        characteristicName = selected_parameters,
+        # Expand friendly labels to the WQP characteristic names the data
+        # is actually recorded under (see R/wq-parameters.R)
+        characteristicName = expand_wq_characteristics(selected_parameters),
         sampleMedia = "Water",
         startDateLo = start_date,
         startDateHi = end_date,

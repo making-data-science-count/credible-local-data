@@ -1,6 +1,7 @@
 archived-tabs.R
 water-data.R
 fips.R
+tests
 renv.lock
 renv
 *.bak

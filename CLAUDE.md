@@ -17,9 +17,15 @@ shiny::runApp("app.R")
 
 Or in RStudio: Open `app.R` and click "Run App".
 
-**No build or test commands** — this is a pure R/Shiny application with no compilation step. Package installation is managed by renv (`renv.lock`); `app.R` only calls `library()`, never `install.packages()`.
+**No build step** — this is a pure R/Shiny application. Package installation is managed by renv (`renv.lock`); `app.R` only calls `library()`, never `install.packages()`.
 
-A quick smoke test after changes:
+**Tests** (run after any change to the data pipeline):
+```sh
+Rscript -e 'testthat::test_dir("tests/testthat")'
+```
+The suite covers the functions in `R/` with synthetic cases plus a saved real API response in `tests/testthat/fixtures/`. Regenerate the fixtures with `Rscript tests/capture-fixtures.R` (hits the live API).
+
+A quick smoke test after app.R changes:
 ```sh
 Rscript -e 'invisible(parse("app.R"))'                        # syntax
 Rscript -e 'shiny::shinyAppFile("app.R")'                     # app object builds
@@ -33,7 +39,9 @@ No API credentials are required for the water quality features. (The archived ai
 
 ## Core Architecture
 
-`app.R` (~1,400 lines) contains everything: CSS, the CODAP JavaScript bridge, UI, and server.
+`app.R` (~1,450 lines) contains the CSS, the CODAP JavaScript bridge, UI, and server. The data-processing pipeline lives in `R/` (auto-sourced by Shiny):
+- `R/wq-parameters.R` — mapping between student-facing parameter labels and the WQP characteristic names data is actually recorded under
+- `R/process-wq.R` — pure data-frame transforms: tidy, county resolution, unit standardization, pivot, site summary; entry point is `process_wq_result()`
 
 ### Water Quality Tab Flow
 1. **Step 1 · Location**: State dropdown → multi-select county selectizeInput (Tennessee/Knox County is the default)
@@ -48,12 +56,20 @@ The fetch runs in a separate R process via `ExtendedTask` + `future::plan(multis
 - **One observer keyed on `water_fetch_task$status()`** handles both success and error. Critical: `ExtendedTask` has no `error()` method, and `result()` *rethrows* the task's error — so never use `result()` as an event expression (it would crash the session on API failure). Errors are retrieved by calling `result()` inside `tryCatch`.
 - An elapsed-time observer (gated by `req(values$loading_visible, ...)` so it only ticks during a fetch) updates the status text every second
 
-### Data Processing (inside the success branch)
+### Parameter Name Mapping (R/wq-parameters.R)
+WQP characteristic names are exact-match, and most data is recorded under names that differ from the obvious ones (e.g., "Temperature, water" not "Temperature"; "Dissolved oxygen (DO)" not "Dissolved oxygen"). A name absent from the WQX domain list fails the whole request with HTTP 400 (the old "Total nitrogen" did this). So:
+- `wq_characteristic_map` maps each student-facing checkbox label to all synonymous characteristic names (verified against the WQP domain service, June 2026)
+- `expand_wq_characteristics()` expands labels → query names at fetch time
+- `normalize_wq_parameter()` collapses fetched names → labels, so synonyms share one column after pivoting
+- Only same-quantity/same-basis synonyms are merged; "Nitrate as N" vs "Nitrate" (as NO3) are intentionally NOT merged
+
+### Data Processing (R/process-wq.R, called from the success branch)
+`process_wq_result()` orchestrates the steps:
 1. Raw data cleaned with `janitor::clean_names()`
 2. Site metadata joined: site_name, **per-site county** (resolved from the WQP `county_code` through the FIPS crosswalk, so multi-county queries label each row with its actual county), lat, lon
-3. Unit standardization in two steps:
+3. Unit standardization in two steps (`standardize_wq_units()`):
    - Convert known variants to a canonical unit: µg/L→mg/L, °F→°C, mS/cm→µS/cm, umho/cm→µS/cm
-   - Within each parameter, keep only the most common unit; dropped rows are counted and reported in the status message
+   - Within each parameter, keep only the most common unit (case-insensitive key, so "mg/L" and "mg/l" count as one); dropped rows are counted and reported in the status message
 4. `pivot_wider` (unit column dropped first; `values_fn = mean` averages same-day replicates) into `values$wide_data`
 5. Top-5 most active sites populate the site selector
 
@@ -86,7 +102,7 @@ The app implements the CODAP Data Interactive Plugin API using **iframe-phone**,
 - **Status text** (`#status_text`) uses `white-space: pre-line` CSS so `\n` in status strings renders as line breaks.
 - **Year slider** bounds derive from `current_year <- as.integer(format(Sys.Date(), "%Y"))`; default is last year.
 - **Reactive values**: a single `reactiveValues()` object (`values$long_data`, `wide_data`, `data_fetched`, `status`, `loading_visible`, `available_sites`, `fetch_start_time`, `current_*`).
-- **Parameter names**: the app passes common names ("pH", "Nitrate") as `characteristicName` to `readWQPdata()`; query is restricted to `sampleMedia = "Water"`, `siteType = "Stream"`.
+- **Parameter names**: checkbox values are student-facing labels, expanded to real WQP characteristic names via `R/wq-parameters.R` (never pass labels straight to the API — see Parameter Name Mapping above); query is restricted to `sampleMedia = "Water"`, `siteType = "Stream"`.
 - **Aggregation**: the UI offers only "Raw data" and "Monthly" (`input$time_aggregation` ∈ "none"/"month"); server code intentionally handles only those two.
 
 ## Code Patterns to Follow
@@ -134,7 +150,13 @@ observeEvent(task$status(), {
 
 ```
 credible-local-data/
-├── app.R                   # Main Shiny app (~1,400 lines) — the only file the app needs
+├── app.R                   # Main Shiny app (~1,450 lines): CSS, CODAP JS bridge, UI, server
+├── R/                      # Auto-sourced by Shiny; deployed with the app
+│   ├── process-wq.R        # Data pipeline (testable pure functions)
+│   └── wq-parameters.R     # Parameter label <-> WQP characteristic name mapping
+├── tests/
+│   ├── capture-fixtures.R  # Regenerates saved API responses (hits live API)
+│   └── testthat/           # Test suite + fixtures/ (excluded from deployment)
 ├── www/
 │   ├── credible-logo.png   # Logo (served automatically by Shiny)
 │   └── iframe-phone.js     # Vendored CODAP communication library (v1.4.0)

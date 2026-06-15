@@ -332,26 +332,6 @@ a {
 a:hover {
   color: #2A5F70 !important;
 }
-
-/* Tab navigation pills - improved readability */
-.nav-pills > li > a {
-  background-color: #e9ecef !important;
-  color: #495057 !important;
-  font-weight: 500 !important;
-  border-radius: 5px !important;
-  margin-right: 5px !important;
-}
-.nav-pills > li > a:hover {
-  background-color: #6A9AA6 !important;
-  color: white !important;
-}
-.nav-pills > li.active > a,
-.nav-pills > li.active > a:hover,
-.nav-pills > li.active > a:focus {
-  background-color: #3B7A8C !important;
-  color: white !important;
-  font-weight: 600 !important;
-}
 "
 
 # Static assets (logo, vendored JS) are served from the www/ directory,
@@ -550,286 +530,256 @@ ui <- dashboardPage(
       "))
     ),
 
-    # Tab layout for Water Quality and Air Quality
-    tabsetPanel(
-      id = "main_tabs", type = "pills",
+    br(),
 
-      # ======================================================================
-      # WATER QUALITY TAB
-      # ======================================================================
-      tabPanel("Water Quality",
-        br(),
-
-        # ============================================================
-        # STEP 1 - Choose a location
-        # ============================================================
-        fluidRow(
-          box(
-            title = "Step 1 · Choose a location",
-            status = "primary", solidHeader = TRUE, width = 12,
-            div(style = "display: flex; gap: 16px; flex-wrap: wrap;",
-              div(style = "flex: 1 1 40%; min-width: 150px;",
-                selectInput("state_selection", "State",
-                  choices = c("Choose a state..." = "",
-                              setNames(states_df$state_name, states_df$state_name)),
-                  selected = "Tennessee", width = "100%")
-              ),
-              div(style = "flex: 1 1 55%; min-width: 200px;",
-                selectizeInput("county_selection", "County (pick one or more)",
-                  choices = {
-                    tn <- fips_clean[fips_clean$state_name == "Tennessee", "county_display", drop = TRUE]
-                    setNames(tn, tn)
-                  },
-                  selected = "Knox County",
-                  multiple = TRUE,
-                  width = "100%",
-                  options = list(placeholder = "Select one or more counties"))
-              )
-            )
+    # ============================================================
+    # STEP 1 - Choose a location
+    # ============================================================
+    fluidRow(
+      box(
+        title = "Step 1 · Choose a location",
+        status = "primary", solidHeader = TRUE, width = 12,
+        div(style = "display: flex; gap: 16px; flex-wrap: wrap;",
+          div(style = "flex: 1 1 40%; min-width: 150px;",
+            selectInput("state_selection", "State",
+              choices = c("Choose a state..." = "",
+                          setNames(states_df$state_name, states_df$state_name)),
+              selected = "Tennessee", width = "100%")
+          ),
+          div(style = "flex: 1 1 55%; min-width: 200px;",
+            selectizeInput("county_selection", "County (pick one or more)",
+              choices = {
+                tn <- fips_clean[fips_clean$state_name == "Tennessee", "county_display", drop = TRUE]
+                setNames(tn, tn)
+              },
+              selected = "Knox County",
+              multiple = TRUE,
+              width = "100%",
+              options = list(placeholder = "Select one or more counties"))
           )
-        ),
+        )
+      )
+    ),
 
-        # ============================================================
-        # STEP 2 - Choose what to measure
-        # ============================================================
-        fluidRow(
-          box(
-            title = "Step 2 · Choose what to measure",
-            status = "primary", solidHeader = TRUE, width = 12,
-            p("Pick the measurements you want. Hover the ",
-              tags$span(icon("info-circle"), style = "color:#3B7A8C;"),
-              " for a quick explanation, or click the ",
-              tags$span(icon("external-link"), style = "color:#3B7A8C;"),
-              " for the EPA fact sheet."),
-            checkboxGroupInput(
-              "parameters_primary",
-              NULL,
-              choiceNames = list(
-                tags$span(
-                  "pH ",
-                  tags$span(
-                    icon("info-circle"),
-                    class = "wq-tip",
-                    `data-tip` = "EPA pH fact sheet: pH measures the hydrogen ion balance of water and affects aquatic life. Most waters that support aquatic life fall between pH 6.5 and 9.0.",
-                    style = "margin-left: 4px;"
-                  ),
-                  tags$a(
-                    icon("external-link"),
-                    href = "https://www.epa.gov/system/files/documents/2021-07/parameter-factsheet_ph.pdf",
-                    target = "_blank",
-                    title = "Open EPA pH fact sheet",
-                    style = "margin-left: 6px;"
-                  )
-                ),
-                tags$span(
-                  "Turbidity ",
-                  tags$span(
-                    icon("info-circle"),
-                    class = "wq-tip",
-                    `data-tip` = "EPA turbidity fact sheet: Settleable and suspended solids should not reduce the depth of the compensation point for photosynthetic activity by more than 10 percent from the seasonally established norm for aquatic life.",
-                    style = "margin-left: 4px;"
-                  ),
-                  tags$a(
-                    icon("external-link"),
-                    href = "https://www.epa.gov/system/files/documents/2021-07/parameter-factsheet_turbidity.pdf",
-                    target = "_blank",
-                    title = "Open EPA turbidity fact sheet",
-                    style = "margin-left: 6px;"
-                  )
-                ),
-                tags$span(
-                  "Temperature ",
-                  tags$span(
-                    icon("info-circle"),
-                    class = "wq-tip",
-                    `data-tip` = "EPA temperature fact sheet: Water temperature shapes habitat quality, organism metabolism, and how much dissolved oxygen water can hold.",
-                    style = "margin-left: 4px;"
-                  ),
-                  tags$a(
-                    icon("external-link"),
-                    href = "https://www.epa.gov/system/files/documents/2021-07/parameter-factsheet_temperature.pdf",
-                    target = "_blank",
-                    title = "Open EPA temperature fact sheet",
-                    style = "margin-left: 6px;"
-                  )
-                ),
-                tags$span(
-                  "Dissolved oxygen ",
-                  tags$span(
-                    icon("info-circle"),
-                    class = "wq-tip",
-                    `data-tip` = "EPA dissolved oxygen fact sheet: Dissolved oxygen is essential for fish and aquatic organisms, and low concentrations can stress or kill aquatic life.",
-                    style = "margin-left: 4px;"
-                  ),
-                  tags$a(
-                    icon("external-link"),
-                    href = "https://www.epa.gov/system/files/documents/2021-07/parameter-factsheet_do.pdf",
-                    target = "_blank",
-                    title = "Open EPA dissolved oxygen fact sheet",
-                    style = "margin-left: 6px;"
-                  )
-                ),
-                tags$span(
-                  "E. coli ",
-                  tags$span(
-                    icon("info-circle"),
-                    class = "wq-tip",
-                    `data-tip` = "EPA E. coli fact sheet: Geometric mean of 126 cfu/100 mL and statistical threshold value (STV) of 410 cfu/100 mL for recreational waters. E. coli indicates fecal contamination.",
-                    style = "margin-left: 4px;"
-                  ),
-                  tags$a(
-                    icon("external-link"),
-                    href = "https://www.epa.gov/system/files/documents/2021-07/parameter-factsheet_e.-coli.pdf",
-                    target = "_blank",
-                    title = "Open EPA E. coli fact sheet",
-                    style = "margin-left: 6px;"
-                  )
-                )
+    # ============================================================
+    # STEP 2 - Choose what to measure
+    # ============================================================
+    fluidRow(
+      box(
+        title = "Step 2 · Choose what to measure",
+        status = "primary", solidHeader = TRUE, width = 12,
+        p("Pick the measurements you want. Hover the ",
+          tags$span(icon("info-circle"), style = "color:#3B7A8C;"),
+          " for a quick explanation, or click the ",
+          tags$span(icon("external-link"), style = "color:#3B7A8C;"),
+          " for the EPA fact sheet."),
+        checkboxGroupInput(
+          "parameters_primary",
+          NULL,
+          choiceNames = list(
+            tags$span(
+              "pH ",
+              tags$span(
+                icon("info-circle"),
+                class = "wq-tip",
+                `data-tip` = "EPA pH fact sheet: pH measures the hydrogen ion balance of water and affects aquatic life. Most waters that support aquatic life fall between pH 6.5 and 9.0.",
+                style = "margin-left: 4px;"
               ),
-              choiceValues = c("pH", "Turbidity", "Temperature", "Dissolved oxygen", "Escherichia coli"),
-              selected = c("pH", "Turbidity", "Temperature", "Dissolved oxygen", "Escherichia coli"),
-              inline = FALSE
+              tags$a(
+                icon("external-link"),
+                href = "https://www.epa.gov/system/files/documents/2021-07/parameter-factsheet_ph.pdf",
+                target = "_blank",
+                title = "Open EPA pH fact sheet",
+                style = "margin-left: 6px;"
+              )
             ),
-
-            tags$details(
-              tags$summary("More options (year range and extra parameters)"),
-              tags$div(style = "padding-top: 12px;",
-                sliderInput("year_selection", "Year range",
-                  min = 1960, max = current_year,
-                  value = c(current_year - 1, current_year - 1),
-                  step = 1, sep = ""),
-                tags$label("Additional parameters",
-                  style = "font-weight: 600; display: block; margin-bottom: 6px;"),
-                checkboxGroupInput("parameters_additional", NULL,
-                  choices = c("Phosphorus" = "Phosphorus",
-                              "Nitrate" = "Nitrate",
-                              "Nitrite" = "Nitrite",
-                              "Conductivity" = "Conductivity",
-                              "Total dissolved solids" = "Total dissolved solids",
-                              "Alkalinity" = "Alkalinity",
-                              "Hardness" = "Hardness",
-                              "Chloride" = "Chloride",
-                              "Sulfate" = "Sulfate",
-                              "Ammonia" = "Ammonia",
-                              "Total nitrogen" = "Total nitrogen"),
-                  selected = character(0),
-                  inline = TRUE)
+            tags$span(
+              "Turbidity ",
+              tags$span(
+                icon("info-circle"),
+                class = "wq-tip",
+                `data-tip` = "EPA turbidity fact sheet: Settleable and suspended solids should not reduce the depth of the compensation point for photosynthetic activity by more than 10 percent from the seasonally established norm for aquatic life.",
+                style = "margin-left: 4px;"
+              ),
+              tags$a(
+                icon("external-link"),
+                href = "https://www.epa.gov/system/files/documents/2021-07/parameter-factsheet_turbidity.pdf",
+                target = "_blank",
+                title = "Open EPA turbidity fact sheet",
+                style = "margin-left: 6px;"
               )
-            )
-          )
-        ),
-
-        # ============================================================
-        # STEP 3 - Get your data
-        # ============================================================
-        fluidRow(
-          box(
-            title = "Step 3 · Get your data",
-            status = "primary", solidHeader = TRUE, width = 12,
-            div(style = "display: flex; align-items: center; gap: 16px; flex-wrap: wrap;",
-              actionButton("fetch_data", "Get Water Data",
-                class = "btn-primary btn-lg", icon = icon("download")),
-              div(style = "flex: 1 1 220px; min-width: 200px;",
-                textOutput("status_text")
+            ),
+            tags$span(
+              "Temperature ",
+              tags$span(
+                icon("info-circle"),
+                class = "wq-tip",
+                `data-tip` = "EPA temperature fact sheet: Water temperature shapes habitat quality, organism metabolism, and how much dissolved oxygen water can hold.",
+                style = "margin-left: 4px;"
+              ),
+              tags$a(
+                icon("external-link"),
+                href = "https://www.epa.gov/system/files/documents/2021-07/parameter-factsheet_temperature.pdf",
+                target = "_blank",
+                title = "Open EPA temperature fact sheet",
+                style = "margin-left: 6px;"
               )
-            )
-          )
-        ),
-
-        # Loading indicator
-        conditionalPanel(
-          condition = "output.loading_visible == true",
-          fluidRow(
-            box(
-              title = "Working…", status = "primary", solidHeader = TRUE, width = 12,
-              div(class = "loading-container",
-                div(class = "loading-spinner"),
-                h4("Fetching water quality data…"),
-                p("Connecting to the USGS Water Quality Portal. This usually takes 10–60 seconds, depending on the location and year range.")
+            ),
+            tags$span(
+              "Dissolved oxygen ",
+              tags$span(
+                icon("info-circle"),
+                class = "wq-tip",
+                `data-tip` = "EPA dissolved oxygen fact sheet: Dissolved oxygen is essential for fish and aquatic organisms, and low concentrations can stress or kill aquatic life.",
+                style = "margin-left: 4px;"
+              ),
+              tags$a(
+                icon("external-link"),
+                href = "https://www.epa.gov/system/files/documents/2021-07/parameter-factsheet_do.pdf",
+                target = "_blank",
+                title = "Open EPA dissolved oxygen fact sheet",
+                style = "margin-left: 6px;"
               )
-            )
-          )
-        ),
-
-        # Results - appears after data is fetched
-        conditionalPanel(
-          condition = "output.data_fetched == true",
-
-          fluidRow(
-            box(
-              title = "Refine your data (optional)",
-              status = "primary", solidHeader = TRUE, width = 12,
-              collapsible = TRUE, collapsed = TRUE,
-              fluidRow(
-                column(6,
-                  selectInput("site_selection", "Monitoring site(s)",
-                    choices = c("All sites" = "all"),
-                    selected = "all", multiple = TRUE),
-                  p(style = "font-size: 12px; color: #6c757d;",
-                    "Focus on specific monitoring sites within your location. ",
-                    "The five most active sites are listed; “All sites” includes every site in your data.")
-                ),
-                column(6,
-                  radioButtons("time_aggregation", "Combine measurements by",
-                    choices = c("Raw data" = "none", "Monthly" = "month"),
-                    selected = "month", inline = TRUE),
-                  p(style = "font-size: 12px; color: #6c757d;",
-                    "Averages the measurements within each period to reduce gaps and data size.")
-                )
+            ),
+            tags$span(
+              "E. coli ",
+              tags$span(
+                icon("info-circle"),
+                class = "wq-tip",
+                `data-tip` = "EPA E. coli fact sheet: Geometric mean of 126 cfu/100 mL and statistical threshold value (STV) of 410 cfu/100 mL for recreational waters. E. coli indicates fecal contamination.",
+                style = "margin-left: 4px;"
+              ),
+              tags$a(
+                icon("external-link"),
+                href = "https://www.epa.gov/system/files/documents/2021-07/parameter-factsheet_e.-coli.pdf",
+                target = "_blank",
+                title = "Open EPA E. coli fact sheet",
+                style = "margin-left: 6px;"
               )
             )
           ),
-
-          fluidRow(
-            box(
-              title = "Send your data", status = "primary", solidHeader = TRUE, width = 12,
-              div(style = "margin-top: 4px;",
-                div(style = "margin-bottom: 12px;",
-                  actionButton("send_to_codap", "Send to CODAP",
-                    class = "btn-primary btn-lg", icon = icon("chart-bar"),
-                    style = "font-size: 16px; padding: 12px 24px;"),
-                  span(id = "codap_send_status",
-                    style = "margin-left: 12px; font-size: 14px; font-weight: 600; vertical-align: middle;"),
-                  p(style = "font-size: 12px; color: #6c757d; margin-top: 8px; margin-bottom: 0;",
-                    tags$strong("CODAP"),
-                    " is a free online tool for making graphs and exploring data. ",
-                    "Your selected data opens there instantly — no download needed. ",
-                    tags$a(href = "https://codap.concord.org/", target = "_blank",
-                      "What’s CODAP?"))
-                ),
-                div(
-                  downloadButton("download_wide", "Download as CSV",
-                    class = "btn-warning", icon = icon("download")),
-                  span(style = "font-size: 12px; color: #6c757d; margin-left: 10px;",
-                    "For use in spreadsheet software")
-                )
-              )
-            )
-          )
+          choiceValues = c("pH", "Turbidity", "Temperature", "Dissolved oxygen", "Escherichia coli"),
+          selected = c("pH", "Turbidity", "Temperature", "Dissolved oxygen", "Escherichia coli"),
+          inline = FALSE
         ),
 
-      ), # end Water Quality tabPanel
+        tags$details(
+          tags$summary("More options (year range and extra parameters)"),
+          tags$div(style = "padding-top: 12px;",
+            sliderInput("year_selection", "Year range",
+              min = 1960, max = current_year,
+              value = c(current_year - 1, current_year - 1),
+              step = 1, sep = ""),
+            tags$label("Additional parameters",
+              style = "font-weight: 600; display: block; margin-bottom: 6px;"),
+            checkboxGroupInput("parameters_additional", NULL,
+              choices = c("Phosphorus" = "Phosphorus",
+                          "Nitrate" = "Nitrate",
+                          "Nitrite" = "Nitrite",
+                          "Conductivity" = "Conductivity",
+                          "Total dissolved solids" = "Total dissolved solids",
+                          "Alkalinity" = "Alkalinity",
+                          "Hardness" = "Hardness",
+                          "Chloride" = "Chloride",
+                          "Sulfate" = "Sulfate",
+                          "Ammonia" = "Ammonia",
+                          "Total nitrogen" = "Total nitrogen"),
+              selected = character(0),
+              inline = TRUE)
+          )
+        )
+      )
+    ),
 
-      # ======================================================================
-      # ABOUT TAB
-      # ======================================================================
-      tabPanel("About",
-        br(),
-        fluidRow(
-          box(
-            title = "About CREDIBLE Local Data", status = "primary",
-            solidHeader = TRUE, width = 12,
-            p("CREDIBLE Local Data helps middle and high school learners collect local water quality data and send it to CODAP to make graphs and explore patterns."),
-            div(style = "text-align: center; padding: 8px 0 4px 0;",
-              tags$img(src = "credible-logo.png", height = "100px",
-                       style = "display: block; margin: 0 auto 8px auto; mix-blend-mode: multiply;"),
-              tags$a(href = "https://projectcredible.com", target = "_blank",
-                     style = "font-size: 12px; color: #3B7A8C;", "projectcredible.com")
+    # ============================================================
+    # STEP 3 - Get your data
+    # ============================================================
+    fluidRow(
+      box(
+        title = "Step 3 · Get your data",
+        status = "primary", solidHeader = TRUE, width = 12,
+        div(style = "display: flex; align-items: center; gap: 16px; flex-wrap: wrap;",
+          actionButton("fetch_data", "Get Water Data",
+            class = "btn-primary btn-lg", icon = icon("download")),
+          div(style = "flex: 1 1 220px; min-width: 200px;",
+            textOutput("status_text")
+          )
+        )
+      )
+    ),
+
+    # Loading indicator
+    conditionalPanel(
+      condition = "output.loading_visible == true",
+      fluidRow(
+        box(
+          title = "Working…", status = "primary", solidHeader = TRUE, width = 12,
+          div(class = "loading-container",
+            div(class = "loading-spinner"),
+            h4("Fetching water quality data…"),
+            p("Connecting to the USGS Water Quality Portal. This usually takes 10–60 seconds, depending on the location and year range.")
+          )
+        )
+      )
+    ),
+
+    # Results - appears after data is fetched
+    conditionalPanel(
+      condition = "output.data_fetched == true",
+
+      fluidRow(
+        box(
+          title = "Refine your data (optional)",
+          status = "primary", solidHeader = TRUE, width = 12,
+          collapsible = TRUE, collapsed = TRUE,
+          fluidRow(
+            column(6,
+              selectInput("site_selection", "Monitoring site(s)",
+                choices = c("All sites" = "all"),
+                selected = "all", multiple = TRUE),
+              p(style = "font-size: 12px; color: #6c757d;",
+                "Focus on specific monitoring sites within your location. ",
+                "The five most active sites are listed; “All sites” includes every site in your data.")
+            ),
+            column(6,
+              radioButtons("time_aggregation", "Combine measurements by",
+                choices = c("Raw data" = "none", "Monthly" = "month"),
+                selected = "month", inline = TRUE),
+              p(style = "font-size: 12px; color: #6c757d;",
+                "Averages the measurements within each period to reduce gaps and data size.")
             )
           )
         )
-      ) # end About tabPanel
-    ) # end tabsetPanel
+      ),
+
+      fluidRow(
+        box(
+          title = "Send your data", status = "primary", solidHeader = TRUE, width = 12,
+          div(style = "margin-top: 4px;",
+            div(style = "margin-bottom: 12px;",
+              actionButton("send_to_codap", "Send to CODAP",
+                class = "btn-primary btn-lg", icon = icon("chart-bar"),
+                style = "font-size: 16px; padding: 12px 24px;"),
+              span(id = "codap_send_status",
+                style = "margin-left: 12px; font-size: 14px; font-weight: 600; vertical-align: middle;"),
+              p(style = "font-size: 12px; color: #6c757d; margin-top: 8px; margin-bottom: 0;",
+                tags$strong("CODAP"),
+                " is a free online tool for making graphs and exploring data. ",
+                "Your selected data opens there instantly — no download needed. ",
+                tags$a(href = "https://codap.concord.org/", target = "_blank",
+                  "What’s CODAP?"))
+            ),
+            div(
+              downloadButton("download_wide", "Download as CSV",
+                class = "btn-warning", icon = icon("download")),
+              span(style = "font-size: 12px; color: #6c757d; margin-left: 10px;",
+                "For use in spreadsheet software")
+            )
+          )
+        )
+      )
+    )
+
   )
 )
 

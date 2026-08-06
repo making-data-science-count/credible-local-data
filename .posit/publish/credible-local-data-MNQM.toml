@@ -8,7 +8,12 @@ title = "credible-local-data"
 files = [
     "/app.R",
     "/fips-xwalk.csv",
-    "/credible-logo.png",
+    "/R/fetch-wq.R",
+    "/R/process-wq.R",
+    "/R/wq-estimate.R",
+    "/R/wq-parameters.R",
+    "/www/credible-logo.png",
+    "/www/iframe-phone.js",
     "/.posit/publish/credible-local-data-MNQM.toml",
     "/.posit/publish/deployments/deployment-UVM4.toml",
 ]

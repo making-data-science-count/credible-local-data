@@ -55,8 +55,11 @@ tidy_wq_sites <- function(meta, location, state_fips, fips_clean) {
     transmute(
       site_id = .data[[id_col]],
       site_name = .data[[name_col]],
-      lat = .data[[lat_col]],
-      lon = .data[[lon_col]],
+      # as.numeric defensively: harmonize_wq_columns() coerces a column to
+      # character whenever two counties' frames disagree on its type, and
+      # CODAP needs numbers here to place map points.
+      lat = as.numeric(.data[[lat_col]]),
+      lon = as.numeric(.data[[lon_col]]),
       county_fips = if (is.na(cnty_col)) NA_character_
                     else sprintf("%03d", suppressWarnings(as.integer(.data[[cnty_col]])))
     ) %>%

@@ -2,7 +2,7 @@
 "$schema" = "https://cdn.posit.co/publisher/schemas/posit-publishing-record-schema-v3.json"
 server_type = "connect_cloud"
 server_url = "https://connect.posit.cloud"
-client_version = "2.7.12"
+client_version = "2.9.15"
 created_at = "2026-05-07T17:47:40.307Z"
 type = "r-shiny"
 configuration_name = "credible-local-data-MNQM"
@@ -10,13 +10,19 @@ id = "019e038f-de68-97e9-f1fd-27ea35fe0e32"
 dashboard_url = "https://connect.posit.cloud/joshuafrosenberg/content/019e038f-de68-97e9-f1fd-27ea35fe0e32"
 direct_url = "https://019e038f-de68-97e9-f1fd-27ea35fe0e32.share.connect.posit.cloud"
 logs_url = "https://connect.posit.cloud/joshuafrosenberg/content/019e038f-de68-97e9-f1fd-27ea35fe0e32/history"
-deployed_at = "2026-06-16T00:14:02.971Z"
-bundle_id = "019ecdc6-f77f-24ae-a8be-1e9f315d1198"
+deployed_at = "2026-08-06T13:55:21.771Z"
+bundle_id = "019fd75b-3e41-6ea6-7b9a-b1c4e3eca20a"
 files = [
     ".posit/publish/credible-local-data-MNQM.toml",
     ".posit/publish/deployments/deployment-UVM4.toml",
+    "R/fetch-wq.R",
+    "R/process-wq.R",
+    "R/wq-estimate.R",
+    "R/wq-parameters.R",
     "app.R",
     "fips-xwalk.csv",
+    "www/credible-logo.png",
+    "www/iframe-phone.js",
 ]
 
 [connect_cloud]
@@ -30,7 +36,12 @@ title = "credible-local-data"
 files = [
     "/app.R",
     "/fips-xwalk.csv",
-    "/credible-logo.png",
+    "/R/fetch-wq.R",
+    "/R/process-wq.R",
+    "/R/wq-estimate.R",
+    "/R/wq-parameters.R",
+    "/www/credible-logo.png",
+    "/www/iframe-phone.js",
     "/.posit/publish/credible-local-data-MNQM.toml",
     "/.posit/publish/deployments/deployment-UVM4.toml",
 ]
@@ -38,7 +49,7 @@ validate = true
 product_type = "connect_cloud"
 
 [configuration.r]
-version = "4.5.2"
+version = "4.5.0"
 
 [renv.r]
 version = "4.5.2"

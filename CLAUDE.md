@@ -10,14 +10,7 @@ CREDIBLE Local Data is a Shiny web application that helps middle and high school
 
 ## Running the Application
 
-**Local Development:**
-```r
-shiny::runApp("app.R")
-```
-
-Or in RStudio: Open `app.R` and click "Run App".
-
-**No build step** — this is a pure R/Shiny application. Package installation is managed by renv (`renv.lock`); `app.R` only calls `library()`, never `install.packages()`.
+Package installation is managed by renv (`renv.lock`); `app.R` only calls `library()`, never `install.packages()`.
 
 **Tests** (run after any change to the data pipeline):
 ```sh
@@ -31,9 +24,11 @@ Rscript -e 'invisible(parse("app.R"))'                        # syntax
 Rscript -e 'shiny::shinyAppFile("app.R")'                     # app object builds
 ```
 
+**Performance** (`PERFORMANCE.md`, raw data in `tests/benchmark-results.csv`): a normal search is ~4.5s and our own processing is 0.5% of it — the wait is entirely WQP. The only selection with a real cost is the **number of counties** (~4.7s each, serial requests); parameter count is negligible and county *size* has no effect. WQP also stalls ~12% of requests (17s–210s). Re-measure with `Rscript tests/benchmark-queries.R` (live API, ~10–20 min); **never conclude anything from a single rep** — single samples previously produced two badly wrong numbers that were really stalls.
+
 ## Dependencies
 
-Loaded by `app.R`: shiny, shinydashboard, tidyverse, dataRetrieval, janitor, promises, future, bslib. Restore with `renv::restore()`.
+Restore with `renv::restore()`.
 
 No API credentials are required for the water quality features. (The archived air quality code reads `AQS_USERNAME`/`AQS_KEY` from `.Renviron`; see `.Renviron.example`.)
 
@@ -43,21 +38,27 @@ No API credentials are required for the water quality features. (The archived ai
 - `R/wq-parameters.R` — mapping between student-facing parameter labels and the WQP characteristic names data is actually recorded under
 - `R/process-wq.R` — pure data-frame transforms: tidy, county resolution, unit standardization, pivot, site summary; entry point is `process_wq_result()`
 
-### Water Quality Tab Flow
-1. **Step 1 · Location**: State dropdown → multi-select county selectizeInput (Tennessee/Knox County is the default)
-2. **Step 2 · Parameters**: Primary checkboxes (pH, Turbidity, Temperature, Dissolved oxygen, E. coli) with EPA fact-sheet tooltips/links, plus a collapsible "More options" section with a year-range slider and additional parameters
-3. **Step 3 · Fetch**: "Get Water Data" button triggers an async `ExtendedTask`
-4. **Refine (optional)**: site filter (top-5 most active sites listed; "All sites" covers everything) and Raw/Monthly aggregation toggle
-5. **Send**: "Send to CODAP" button + CSV download
-
 ### Async Fetch Pattern (ExtendedTask)
-The fetch runs in a separate R process via `ExtendedTask` + `future::plan(multisession)` so the UI stays responsive, with `bslib::bind_task_button()` disabling the button while running:
+The fetch runs in a separate R process via `ExtendedTask` + `future::plan(multisession)` so the UI stays responsive. `bslib::bind_task_button("fetch_data")` drives the button's busy state — this only works because the button is a `bslib::input_task_button`; with a plain `actionButton` the binding is silently inert and students can fire overlapping fetches.
 - **One request per county**, results combined with `bind_rows()`, because the WQP API returns HTTP 500 when given multiple `countycode` values (verified June 2026; repeated params and semicolon-delimited both fail)
 - **Primary service: WQX 3.0** (`readWQPdata(service = "ResultWQX3", dataProfile = "basicPhysChem")`) — the only WQP route to USGS data newer than March 2024 (legacy services stopped receiving USGS updates then; verified empirically June 2026). The WQX3 result profile carries site metadata (name, lat/lon) on every row, so it needs no separate station request — the result frame is passed as `meta_df` too.
 - **Fallback: legacy services** (`readWQPdata()` + `whatWQPsites()`) if any WQX3 request fails (WQX3 is still labeled beta). The fallback is **all-or-nothing across counties** — never mix services in one fetch, because the two schemas have different column names.
-- **County stamping**: every fetched row is stamped with `credible_county_fips` from the query it came from. The queried county is authoritative — WQX3 rows often have *empty* county metadata — and `tidy_wq_sites()` prefers the stamp over the profile's own county column.
+- **The fallback is surfaced, not silent**: the task result carries `service` ("wqx3"/"legacy"). Legacy has no USGS data after March 2024 (other providers — state agencies, NPS — keep flowing), so when legacy served a query whose year range reaches ≥2024 the UI warns that USGS measurements may be missing, and an *empty* legacy result gets "the newest service isn't answering — try again" instead of "No water quality data found" (an empty fallback result says nothing about whether data exists in USGS-only counties). Ranges ending before 2024 warn about nothing: legacy is complete there.
+- **County stamping**: every fetched row is stamped with `credible_county_fips` from the query it came from (`stamp_county()`, `R/fetch-wq.R`). The queried county is authoritative — WQX3 rows often have *empty* county metadata — and `tidy_wq_sites()` prefers the stamp over the profile's own county column. `stamp_county()` **must keep its zero-row guard**: a no-data county returns a 0-row/many-column frame, and `df$col <- value` on that throws `"replacement has 1 row, data has 0"`, which used to kill both services and hide the server's "No water quality data found" branch behind a technical error.
+- **Column-type harmonization**: `harmonize_wq_columns()` (`R/fetch-wq.R`) runs before every `bind_rows()` of per-county frames. The WQP CSV parser types each column *per request*, so one county can return e.g. `DetectionLimit_MeasureA` as character while another returns it numeric (observed: Sevier vs. Knox/Blount, TN); `bind_rows()` aborts on that. Because the abort was caught by the WQX3 `tryCatch`, it silently demoted **every affected multi-county query to the legacy service** — i.e. to data with no USGS updates after March 2024. Conflicting columns are coerced to character (lossless; no column the pipeline reads is affected).
+- **Request deadline**: every WQP call goes through `wqp_request()` (`R/fetch-wq.R`), which bounds it to 20s and retries once. `dataRetrieval` sets **no timeout** on the WQP path (`getWebServiceData()` has `req_throttle` + `req_retry` but no `req_timeout`), so without this a stalled request hangs indefinitely — WQP stalls ~12% of requests, up to 210s observed. Two traps, both verified live: a deadline that fires inside curl arrives as an **`interrupt`** with an empty message, so `tryCatch(error = ...)` silently misses it; and `future`'s globals scanner **does not follow default arguments**, so the deadline/tries defaults must stay literals — a named constant passes every local test and then fails only in the worker. Only deadlines are retried, so the WQX3→legacy fallback still triggers on real errors as before.
+- **Shared result cache**: each county's result goes through `cached_wqp_fetch()` (`R/fetch-wq.R`), a read-through `cachem::cache_disk` keyed on county + dates + parameters + **service** (WQX3 and legacy schemas must never be served for one another). Keyed per *county*, not per fetch, so overlapping selections share entries. It lives in `dirname(tempdir())` — the container's shared temp root — **not** `tempdir()`, which is private per process and would give every Shiny and future worker its own useless copy. 24h TTL is safe because WQP data reaches the Portal days-to-weeks after collection. `wq_cache()` probes a real write before returning, because `cache_disk()` constructs happily against a directory it cannot write to; on failure it returns `NULL` and the fetch runs uncached rather than failing.
+- **Cancellation** is cooperative: `input$cancel_fetch` drops a sentinel file that the worker checks *between counties* via `stop_if_cancelled()`, and sets `values$fetch_cancelled` so a result that lands anyway is discarded. A request already inside curl cannot be interrupted — that is what the deadline is for — so the Get Water Data button stays busy briefly after "Stop waiting", and the copy says so. A `wqp_cancelled` error must **not** trigger the legacy fallback, or cancelling would silently restart the whole fetch on the slower service.
 - **One observer keyed on `water_fetch_task$status()`** handles both success and error. Critical: `ExtendedTask` has no `error()` method, and `result()` *rethrows* the task's error — so never use `result()` as an event expression (it would crash the session on API failure). Errors are retrieved by calling `result()` inside `tryCatch`.
-- An elapsed-time observer (gated by `req(values$loading_visible, ...)` so it only ticks during a fetch) updates the status text every second
+- An elapsed-time observer (gated by `req(values$loading_visible, ...)` so it only ticks during a fetch) updates `values$fetch_elapsed` every second
+
+### Fetch Feedback (what the student sees while waiting)
+A network fetch of 10–90 seconds is the app's longest silence, so the wait is signalled in four places at once:
+- **The button itself** swaps to a spinner + "Fetching data…" and disables (`input_task_button` + `bind_task_button`)
+- **`#status_text`** beside the button reads "Searching the USGS Water Quality Portal…", and afterwards carries the result/error summary
+- **The loading card** (`.wq-loading-card`, in a `conditionalPanel` on `output.loading_visible`, placed *inside* the Step 3 box so it is visible without scrolling in a short CODAP iframe) echoes the query back — `values$current_query_summary` is "Knox County, Tennessee · 2025 · 5 parameters" — over an indeterminate sliding progress bar, plus a live elapsed counter (`output$loading_elapsed`) whose reassurance text switches from "most searches finish in 10–60 seconds" to "still working…" past the one-minute mark. The bar is deliberately indeterminate: the API gives no progress signal, so a bar that fills to 100% would promise a completion time we can't know.
+- **Stale results dim** during a re-fetch: an `observeEvent(values$loading_visible, ...)` sends a `setFetching` custom message and the JS handler toggles `body.wq-fetching`, which fades the `.wq-results` conditional panel to 40% and blocks pointer events. This goes through a custom message rather than a `shiny:value` listener because `loading_visible` has no DOM output binding to listen on.
+- `@media (prefers-reduced-motion: reduce)` freezes the spinner, the progress stripe, and the CODAP busy spinner; the card and the elapsed counter still convey the state.
 
 ### Parameter Name Mapping (R/wq-parameters.R)
 WQP characteristic names are exact-match, and most data is recorded under names that differ from the obvious ones (e.g., "Temperature, water" not "Temperature"; "Dissolved oxygen (DO)" not "Dissolved oxygen"). A name absent from the WQX domain list fails the whole request with HTTP 400 (the old "Total nitrogen" did this). So:
@@ -65,21 +66,6 @@ WQP characteristic names are exact-match, and most data is recorded under names 
 - `expand_wq_characteristics()` expands labels → query names at fetch time
 - `normalize_wq_parameter()` collapses fetched names → labels, so synonyms share one column after pivoting
 - Only same-quantity/same-basis synonyms are merged; "Nitrate as N" vs "Nitrate" (as NO3) are intentionally NOT merged
-
-### Data Processing (R/process-wq.R, called from the success branch)
-`process_wq_result()` orchestrates; every step is schema-aware via `wq_col()` (column-name candidates for both WQX3 and legacy profiles):
-1. Raw data cleaned with `janitor::clean_names()`
-2. Site metadata joined: site_name, **per-site county** (from the fetch-time county stamp through the FIPS crosswalk, so multi-county queries label each row with its actual county), lat, lon
-3. Unit standardization in two steps (`standardize_wq_units()`):
-   - Convert known variants to a canonical unit: µg/L→mg/L, °F→°C, mS/cm→µS/cm, umho/cm→µS/cm
-   - Within each parameter, keep only the most common unit (case-insensitive key, so "mg/L" and "mg/l" count as one); dropped rows are counted and reported in the status message
-4. `pivot_wider` (unit column dropped first; `values_fn = mean` averages same-day replicates) into `values$wide_data`
-5. Top-5 most active sites populate the site selector
-
-### FIPS Crosswalk System
-- `fips-xwalk.csv` contains ALL US counties (3,000+) from Kieran Healy's dataset
-- `fips_clean` dataframe provides state/county lookups
-- Five-digit FIPS codes: first 2 digits = state, last 3 = county
 
 ## CODAP Integration
 
@@ -104,41 +90,9 @@ The app implements the CODAP Data Interactive Plugin API using **iframe-phone**,
 - **Static assets** live in `www/` (logo, iframe-phone.js), which Shiny serves automatically. Never use `addResourcePath` pointing at `"."` — that exposes the app source over HTTP.
 - **Status text** (`#status_text`) uses `white-space: pre-line` CSS so `\n` in status strings renders as line breaks.
 - **Year slider** bounds derive from `current_year <- as.integer(format(Sys.Date(), "%Y"))`; default is last year.
-- **Reactive values**: a single `reactiveValues()` object (`values$long_data`, `wide_data`, `data_fetched`, `status`, `loading_visible`, `available_sites`, `fetch_start_time`, `current_*`).
+- **Reactive values**: a single `reactiveValues()` object (`values$long_data`, `wide_data`, `data_fetched`, `status`, `loading_visible`, `available_sites`, `fetch_start_time`, `fetch_elapsed`, `current_*`).
 - **Parameter names**: checkbox values are student-facing labels, expanded to real WQP characteristic names via `R/wq-parameters.R` (never pass labels straight to the API — see Parameter Name Mapping above); query is restricted to `sampleMedia = "Water"`, `siteType = "Stream"`.
 - **Aggregation**: the UI offers only "Raw data" and "Monthly" (`input$time_aggregation` ∈ "none"/"month"); server code intentionally handles only those two.
-
-## Code Patterns to Follow
-
-**Data validation pattern:**
-```r
-if (input$state_selection == "" || is.null(input$county_selection) || length(input$county_selection) == 0) {
-  showNotification("Please select state and at least one county", type = "error", duration = 5)
-  return()
-}
-```
-
-**Loading indicator pattern:**
-```r
-values$loading_visible <- TRUE
-values$fetch_start_time <- Sys.time()
-# ... invoke ExtendedTask; observers set loading_visible <- FALSE on completion/error
-```
-
-**ExtendedTask error handling pattern:**
-```r
-observeEvent(task$status(), {
-  st <- task$status()
-  if (st == "error") {
-    msg <- tryCatch({ task$result(); "Unknown error" }, error = function(e) conditionMessage(e))
-    # ... show friendly error ...
-    return()
-  }
-  if (st != "success") return()
-  result <- task$result()
-  # ... process ...
-})
-```
 
 ## Common Gotchas
 
@@ -146,35 +100,9 @@ observeEvent(task$status(), {
 2. **Multi-county queries**: `input$county_selection` is a vector; FIPS codes are built as `paste0("US:", state_fips, ":", county_fips)` vectors, but the WQP API must be queried one county at a time (see Async Fetch Pattern). Each row's `county` column comes from the fetch-time county stamp, not the combined location string.
 3. **Mixed units**: WQP returns the same parameter in different units (e.g., temperature in both °C and °F). Convert known variants first, then the modal-unit filter drops the rest — check this when adding new parameters.
 4. **WQX3 metadata is patchy**: county code/name fields are often empty strings in WQX3 result rows, and the WQX3 services print a "use with caution" beta warning. Don't rely on WQX3 county metadata (use the stamp) and keep the legacy fallback intact.
-5. **Year range warnings**: ranges > 3 years trigger a notification about slow fetches.
+5. **Search time estimates**: `R/wq-estimate.R` holds the fitted model (4.7s per county + 1.2s per extra year, reproducing all three measured benchmark medians) used by both the inline estimate under the county picker and the >3-year notification. Parameter count is deliberately not a term. Keep the two in sync — the notification previously claimed "30-90 seconds" for a long range that actually measures 9.5s. Above `wq_county_soft_cap` (5) the inline estimate turns into a warning, but nothing is blocked: comparing eight counties is a legitimate lesson.
 6. **NA handling in CODAP export**: NA must become NULL (`if (length(x) == 1 && is.na(x)) NULL else x`) or CODAP receives invalid JSON.
 7. **`"all" %in% input$site_selection`**: the site filter treats "all" anywhere in the selection as "no filtering".
-
-## File Structure
-
-```
-credible-local-data/
-├── app.R                   # Main Shiny app (~1,450 lines): CSS, CODAP JS bridge, UI, server
-├── R/                      # Auto-sourced by Shiny; deployed with the app
-│   ├── process-wq.R        # Data pipeline (testable pure functions)
-│   └── wq-parameters.R     # Parameter label <-> WQP characteristic name mapping
-├── tests/
-│   ├── capture-fixtures.R  # Regenerates saved API responses (hits live API)
-│   └── testthat/           # Test suite + fixtures/ (excluded from deployment)
-├── www/
-│   ├── credible-logo.png   # Logo (served automatically by Shiny)
-│   └── iframe-phone.js     # Vendored CODAP communication library (v1.4.0)
-├── fips-xwalk.csv          # FIPS code lookup (3,000+ counties)
-├── archived-tabs.R         # Archived air quality / weather / biodiversity code (reference only)
-├── water-data.R            # Original script (reference only)
-├── fips.R                  # Script to download FIPS data (reference only)
-├── renv.lock, renv/        # Package management
-├── .rscignore              # Files excluded from shinyapps.io deployment
-├── .renvignore             # Files excluded from renv dependency scanning
-├── README.md               # User-facing documentation
-├── CODAP_*.md              # CODAP integration documentation
-└── credible-local-data.Rproj
-```
 
 ## Key External Resources
 

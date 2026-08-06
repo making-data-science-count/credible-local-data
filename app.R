@@ -240,27 +240,97 @@ body, .content-wrapper, .main-sidebar, .main-header {
   pointer-events: none;
 }
 
-/* Loading */
-.loading-container {
-  text-align: center;
-  padding: 30px;
-  background-color: #f8f9fa;
-  border: 1px solid #dee2e6;
+/* Loading — the reassurance card shown while a fetch runs.
+   It sits directly under the Get Water Data button so it is impossible
+   to miss, and reports what is being fetched plus elapsed time. */
+.wq-loading-card {
+  background: #f2f9fa;
+  border: 1px solid #cfe3e8;
+  border-left: 5px solid #3B7A8C;
   border-radius: 8px;
-  margin: 20px 0;
+  padding: 16px 18px;
+  margin: 4px 0 16px 0;
 }
+.wq-loading-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+.wq-loading-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: #2A5F70;
+  margin: 0 0 3px 0;
+}
+.wq-loading-sub {
+  font-size: 13px;
+  color: #4A6B73;
+  margin: 0;
+}
+.wq-loading-meta {
+  font-size: 13px;
+  font-weight: 600;
+  color: #3B7A8C;
+  margin-top: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.wq-loading-hint {
+  font-size: 13px;
+  color: #4A6B73;
+  margin-top: 4px;
+}
+.wq-loading-actions {
+  margin-top: 10px;
+}
+/* Deliberately quiet: waiting is the normal path, so stopping should be
+   available without competing with the progress bar for attention. */
+.wq-cancel-link {
+  font-size: 13px;
+  color: #4A6B73;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.wq-cancel-link:hover, .wq-cancel-link:focus {
+  color: #2A5F70;
+}
+
+/* Estimated search time, under the county picker. Counties are the only
+   choice with a real cost, so the number sits where that choice is made. */
+.wq-estimate {
+  font-size: 12.5px;
+  color: #4A6B73;
+  margin-top: 6px;
+  font-variant-numeric: tabular-nums;
+}
+.wq-estimate-warn {
+  color: #8a5a00;
+  font-weight: 600;
+}
+.wq-estimate-note {
+  font-weight: 400;
+}
+
 .loading-spinner {
+  flex: 0 0 auto;
   display: inline-block;
-  width: 40px;
-  height: 40px;
-  border: 3px solid #e0ecef;
+  width: 34px;
+  height: 34px;
+  border: 3px solid #d7e8ec;
   border-radius: 50%;
   border-top-color: #3B7A8C;
-  animation: spin 1s ease-in-out infinite;
-  margin-bottom: 15px;
+  animation: spin 1s linear infinite;
 }
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+/* Results already on screen are dimmed while a new fetch runs, so students
+   don't read stale numbers as the answer to the question they just asked.
+   The body class is toggled from JS off the loading_visible output. */
+.wq-fetching .wq-results {
+  opacity: 0.4;
+  pointer-events: none;
+  transition: opacity 0.2s ease-in-out;
 }
 
 /* CODAP send status (inline, next to the Send to CODAP button) */
@@ -285,24 +355,46 @@ button#send_to_codap:disabled {
   opacity: 0.65;
   cursor: not-allowed;
 }
+/* Indeterminate progress bar: a stripe that slides across, because we
+   cannot know how far along the API call is — a bar that fills to 100%
+   would promise a completion we can't predict. */
 .progress-bar-custom {
+  position: relative;
   width: 100%;
   height: 6px;
   background-color: #e0ecef;
   border-radius: 3px;
   overflow: hidden;
-  margin-top: 10px;
+  margin-top: 12px;
 }
 .progress-bar-fill {
+  position: absolute;
+  top: 0;
+  left: -40%;
+  width: 40%;
   height: 100%;
   background-color: #3B7A8C;
   border-radius: 3px;
-  animation: progress 3s ease-in-out infinite;
+  animation: progress 1.4s ease-in-out infinite;
 }
 @keyframes progress {
-  0%   { width: 0%; }
-  50%  { width: 70%; }
-  100% { width: 100%; }
+  0%   { left: -40%; }
+  100% { left: 100%; }
+}
+
+/* Students using reduced-motion settings still get the card and the
+   elapsed timer; the moving parts just hold still. */
+@media (prefers-reduced-motion: reduce) {
+  .loading-spinner,
+  .progress-bar-fill,
+  .codap-status-busy::before {
+    animation: none !important;
+  }
+  .progress-bar-fill {
+    left: 0;
+    width: 100%;
+    opacity: 0.5;
+  }
 }
 
 /* Details / summary */
@@ -349,6 +441,14 @@ ui <- dashboardPage(
     # Include custom CSS
     tags$head(
       tags$style(HTML(custom_css)),
+      # Marks the page as "fetching" so already-visible results dim while a
+      # new query runs. Driven by a custom message rather than the
+      # loading_visible output, which has no DOM binding to listen to.
+      tags$script(HTML("
+        Shiny.addCustomMessageHandler('setFetching', function(msg) {
+          document.body.classList.toggle('wq-fetching', !!(msg && msg.fetching));
+        });
+      ")),
       # iframe-phone is vendored locally (www/iframe-phone.js) so the CODAP
       # connection works on school networks that block CDNs.
       tags$script(src = "iframe-phone.js"),
@@ -555,7 +655,12 @@ ui <- dashboardPage(
               selected = "Knox County",
               multiple = TRUE,
               width = "100%",
-              options = list(placeholder = "Select one or more counties"))
+              options = list(placeholder = "Select one or more counties")),
+            # Counties are the one choice with a real, predictable cost
+            # (~4.7s each, looked up one at a time), so show it at the
+            # moment the student is making that choice rather than
+            # surprising them with the wait afterwards.
+            uiOutput("county_estimate")
           )
         )
       )
@@ -699,25 +804,40 @@ ui <- dashboardPage(
         title = "Step 3 · Get your data",
         status = "primary", solidHeader = TRUE, width = 12,
         div(style = "display: flex; align-items: center; gap: 16px; flex-wrap: wrap;",
-          actionButton("fetch_data", "Get Water Data",
-            class = "btn-primary btn-lg", icon = icon("download")),
+          # input_task_button (not actionButton) so the button itself turns
+          # into a spinner + "Fetching data…" and disables while the
+          # ExtendedTask runs — see bind_task_button below.
+          bslib::input_task_button("fetch_data", "Get Water Data",
+            icon = icon("download"),
+            label_busy = "Fetching data…",
+            type = "primary", class = "btn-lg"),
           div(style = "flex: 1 1 220px; min-width: 200px;",
             textOutput("status_text")
           )
-        )
-      )
-    ),
+        ),
 
-    # Loading indicator
-    conditionalPanel(
-      condition = "output.loading_visible == true",
-      fluidRow(
-        box(
-          title = "Working…", status = "primary", solidHeader = TRUE, width = 12,
-          div(class = "loading-container",
-            div(class = "loading-spinner"),
-            h4("Fetching water quality data…"),
-            p("Connecting to the USGS Water Quality Portal. This usually takes 10–60 seconds, depending on the location and year range.")
+        # Loading indicator, immediately below the button so it is visible
+        # without scrolling even in a short CODAP plugin iframe
+        conditionalPanel(
+          condition = "output.loading_visible == true",
+          div(class = "wq-loading-card", role = "status", `aria-live` = "polite",
+            div(class = "wq-loading-top",
+              div(class = "loading-spinner"),
+              div(
+                p(class = "wq-loading-title", "Getting your water data…"),
+                p(class = "wq-loading-sub", textOutput("loading_query_summary", inline = TRUE))
+              )
+            ),
+            div(class = "progress-bar-custom", div(class = "progress-bar-fill")),
+            div(class = "wq-loading-meta", textOutput("loading_elapsed", inline = TRUE)),
+            div(class = "wq-loading-hint",
+              "We're asking the USGS Water Quality Portal for every measurement that matches your choices. ",
+              "You can keep this window open — it will fill in on its own."),
+            # There is no way to abort a request already in flight, so this
+            # stops waiting rather than claiming to stop the search. See the
+            # cancel_fetch observer.
+            div(class = "wq-loading-actions",
+              actionLink("cancel_fetch", "Stop waiting", class = "wq-cancel-link"))
           )
         )
       )
@@ -726,6 +846,7 @@ ui <- dashboardPage(
     # Results - appears after data is fetched
     conditionalPanel(
       condition = "output.data_fetched == true",
+      class = "wq-results",
 
       fluidRow(
         box(
@@ -799,7 +920,17 @@ server <- function(input, output, session) {
       current_location = "",
       loading_visible = FALSE,
       available_sites = NULL,
-      fetch_start_time = NULL  # Track when fetch started for elapsed time display
+      fetch_start_time = NULL,  # Track when fetch started for elapsed time display
+      fetch_elapsed = 0,        # Seconds since the fetch started (ticks while loading)
+      current_query_summary = "",  # "Knox County, Tennessee · 2025 · 5 parameters"
+      query_is_big = FALSE,     # Picks which wait copy to show (see below)
+      # Cancellation. Only one fetch can be in flight (the task button is
+      # disabled while it runs), so a single flag is enough to decide
+      # whether a result that lands later is still wanted — no generation
+      # counter needed. cancel_file is the sentinel the worker polls
+      # between counties (see stop_if_cancelled in R/fetch-wq.R).
+      fetch_cancelled = FALSE,
+      cancel_file = NULL
     )
     
     # Make loading_visible available as an input for the conditional panel
@@ -807,6 +938,13 @@ server <- function(input, output, session) {
       values$loading_visible
     })
     outputOptions(output, "loading_visible", suspendWhenHidden = FALSE)
+
+    # ...and tell the browser, so the results section below can dim while a
+    # new fetch replaces it (see the setFetching handler in tags$head)
+    observeEvent(values$loading_visible, {
+      session$sendCustomMessage("setFetching",
+                                list(fetching = isTRUE(values$loading_visible)))
+    })
     
     # Make data_fetched available for the conditional panel
     output$data_fetched <- reactive({
@@ -817,7 +955,7 @@ server <- function(input, output, session) {
     # ============================================================
     # ExtendedTask for Water Quality API calls (async)
     # ============================================================
-    water_fetch_task <- ExtendedTask$new(function(qry, location) {
+    water_fetch_task <- ExtendedTask$new(function(qry, location, cache_dir, cancel_file) {
       future({
         # These API calls run in a separate R process, allowing UI to update.
         # The Water Quality Portal rejects requests with multiple countycode
@@ -831,41 +969,102 @@ server <- function(input, output, session) {
         # fetch falls back to the legacy services. All-or-nothing: the two
         # services use different column names, so counties must never be
         # mixed across services in one result.
+        # harmonize_wq_columns() before every bind_rows: the WQP CSV parser
+        # types each column per request, so one county can return a column
+        # as character that another returned as numeric, and bind_rows()
+        # aborts. See R/fetch-wq.R — unguarded, that mismatch silently
+        # demoted multi-county fetches to the legacy service.
+        # Rebuilt here rather than passed in: a cachem cache is a set of
+        # closures, and handing one across the process boundary is a
+        # serialization risk for no gain — the disk directory is the shared
+        # state, and opening it is just a directory handle.
+        cache <- wq_cache(cache_dir)
         fetch_counties <- function(fetch_county) {
-          parts <- lapply(qry$countycode, fetch_county)
+          # Between counties is the only place the worker can notice a
+          # cancellation; a request already in flight is bounded by the
+          # deadline instead. Checked before the first county too, so a
+          # cancel that lands during the future's startup costs nothing.
+          parts <- lapply(qry$countycode, function(code) {
+            stop_if_cancelled(cancel_file)
+            fetch_county(code)
+          })
           list(
-            wq_raw = dplyr::bind_rows(lapply(parts, function(p) p$wq)),
-            meta_df = dplyr::distinct(dplyr::bind_rows(lapply(parts, function(p) p$meta)))
+            wq_raw = dplyr::bind_rows(
+              harmonize_wq_columns(lapply(parts, function(p) p$wq))
+            ),
+            meta_df = dplyr::distinct(dplyr::bind_rows(
+              harmonize_wq_columns(lapply(parts, function(p) p$meta))
+            ))
           )
         }
-        # Stamp every row with the county FIPS we queried for: the query is
-        # the authoritative county (WQX3 rows often have empty county
-        # metadata), and tidy_wq_sites() prefers this stamp.
-        stamp_county <- function(df, code) {
-          df$credible_county_fips <- sub("^US:[0-9]+:", "", code)
-          df
+        # Every result fetch in this app goes through here, and none of them
+        # want readWQPdata()'s attributes. Its create_WQP_attributes() step
+        # fires a whatWQPsites() request (plus wqp_check_status() on WQX3)
+        # purely to attach siteInfo/variableInfo/headerInfo — attributes
+        # nothing in this app reads. That was two extra cold round trips per
+        # county, and a failure point: a 500 from the hidden request would
+        # drop the whole fetch into the slower legacy fallback.
+        #
+        # This belongs on readWQPdata only. whatWQPsites() forwards unknown
+        # argument names into the URL as query parameters, so the flag must
+        # not be added to a query list that is also passed to it.
+        #
+        # wqp_request() (R/fetch-wq.R) bounds each request and retries it
+        # once on timeout. WQP has no timeout of its own on this path, so
+        # without it a stalled request hangs indefinitely -- see
+        # PERFORMANCE.md. Non-timeout errors still propagate, so the
+        # WQX3 -> legacy fallback below is unaffected.
+        read_wqp_results <- function(q) {
+          wqp_request(function() {
+            do.call(dataRetrieval::readWQPdata, c(q, list(ignore_attributes = TRUE)))
+          })
         }
+        # Each county goes through the shared read-through cache, keyed on
+        # the per-county query including the service — so a class searching
+        # the same county pays the network cost once, and a cache hit also
+        # cannot stall. See cached_wqp_fetch() in R/fetch-wq.R.
         wqx3_county <- function(code) {
           q <- qry
           q$countycode <- code
           q$service <- "ResultWQX3"
           q$dataProfile <- "basicPhysChem"
-          wq <- stamp_county(do.call(dataRetrieval::readWQPdata, q), code)
-          list(wq = wq, meta = wq)
+          cached_wqp_fetch(q, function() {
+            wq <- stamp_county(read_wqp_results(q), code)
+            list(wq = wq, meta = wq)
+          }, cache)
         }
         legacy_county <- function(code) {
           q <- qry
           q$countycode <- code
-          list(
-            wq = do.call(dataRetrieval::readWQPdata, q),
-            meta = stamp_county(do.call(dataRetrieval::whatWQPsites, q), code)
-          )
+          cached_wqp_fetch(q, function() {
+            list(
+              wq = read_wqp_results(q),
+              meta = stamp_county(
+                wqp_request(function() do.call(dataRetrieval::whatWQPsites, q)), code
+              )
+            )
+          }, cache)
         }
+        # Which service answered travels with the result. The legacy
+        # services carry no USGS data newer than March 2024, so a fallback
+        # result for a recent year range is missing every USGS station —
+        # silently plausible in counties with other providers, and a flat
+        # "no data" in counties where USGS is the only one. The server
+        # branches its copy on this so the student is told either way.
+        service <- "wqx3"
         fetched <- tryCatch(
           fetch_counties(wqx3_county),
-          error = function(e) fetch_counties(legacy_county)
+          error = function(e) {
+            # A cancellation is not a WQX3 failure. Falling back would
+            # restart the entire fetch on the legacy service — slower, and
+            # against what the student just asked for.
+            if (inherits(e, "wqp_cancelled")) stop(e)
+            service <<- "legacy"
+            fetch_counties(legacy_county)
+          }
         )
-        list(wq_raw = fetched$wq_raw, meta_df = fetched$meta_df, location = location)
+        list(wq_raw = fetched$wq_raw, meta_df = fetched$meta_df,
+             location = location, service = service)
       }, seed = TRUE)
     }) |> bslib::bind_task_button("fetch_data")
 
@@ -876,8 +1075,62 @@ server <- function(input, output, session) {
     observe({
       req(values$loading_visible, values$fetch_start_time)
       invalidateLater(1000)  # Update every second
-      elapsed <- round(difftime(Sys.time(), values$fetch_start_time, units = "secs"))
-      values$status <- paste0("Requesting data from USGS Water Quality Portal... (", elapsed, " seconds)")
+      values$fetch_elapsed <- as.numeric(
+        round(difftime(Sys.time(), values$fetch_start_time, units = "secs"))
+      )
+    })
+
+    # What the loading card says: what we asked for, and how long it's taken.
+    output$loading_query_summary <- renderText({
+      values$current_query_summary
+    })
+
+    output$loading_elapsed <- renderText({
+      secs <- values$fetch_elapsed
+      elapsed_text <- if (secs < 60) {
+        paste0(secs, if (secs == 1) " second" else " seconds")
+      } else {
+        mins <- secs %/% 60
+        paste0(mins, if (mins == 1) " minute " else " minutes ", secs %% 60, "s")
+      }
+      # What we tell the student while they wait, staged by how long it has
+      # actually taken. Grounded in tests/benchmark-results.csv rather than
+      # guesswork, because the old copy ("most searches finish in 10–60
+      # seconds", "big counties and long year ranges take longer") was
+      # wrong twice over:
+      #   - A normal search returns in about 4-5 seconds, not 10–60. The
+      #     old range made the common case sound like a long wait.
+      #   - County *size* is not what makes a search slow: results of 77
+      #     and 1093 rows both came back in ~5s. What costs time is the
+      #     *number of counties* (one serial request each), and to a lesser
+      #     degree the year range. Blaming big counties sent students to a
+      #     control that wouldn't help.
+      # The Portal also stalls on individual requests for no visible reason
+      # (3 of 24 cold reps, from 17s to 210s where the same query normally
+      # took ~5s), so past the expected window the copy stops predicting
+      # and starts reassuring — and never quotes a finish time it can't
+      # keep.
+      # The stages differ by query size, because the same 15-second mark
+      # means "something is stalling" for a normal search and "going to
+      # plan" for a big one.
+      tail_text <- if (values$query_is_big) {
+        if (secs < 90) {
+          "searches like this take a little longer — each extra county is looked up separately, and longer year ranges add time too"
+        } else {
+          "still working. It's safe to leave this running, or reload the page to try fewer counties or a shorter year range"
+        }
+      } else {
+        if (secs < 10) {
+          "searches like this usually take just a few seconds"
+        } else if (secs < 30) {
+          "the Portal is being slow to answer — that happens even for small counties, and it usually sorts itself out"
+        } else if (secs < 90) {
+          "still working — this one is taking longer than usual"
+        } else {
+          "still working. It's safe to leave this running, or reload the page to try fewer counties or a shorter year range"
+        }
+      }
+      paste0(elapsed_text, " so far · ", tail_text)
     })
 
     # Observer for water quality task completion (success or error).
@@ -888,30 +1141,68 @@ server <- function(input, output, session) {
     observeEvent(water_fetch_task$status(), {
       task_status <- water_fetch_task$status()
 
-      if (task_status == "error") {
-        err_msg <- tryCatch({
-          water_fetch_task$result()
-          "Unknown error"
-        }, error = function(e) conditionMessage(e))
-        values$status <- paste0(
-          "Oops! Something went wrong while fetching data.\n\n",
-          "Technical details: ", err_msg, "\n\n",
-          "What you can try:\n",
-          "- Wait a moment and click 'Get Water Data' again\n",
-          "- Check your internet connection\n",
-          "- Try selecting a different county or smaller year range\n",
-          "- Ask your teacher for help if this keeps happening"
-        )
-        showNotification(
-          "There was a problem fetching data. Try again or select different options.",
-          type = "error", duration = 8
-        )
+      if (!task_status %in% c("error", "success")) return()
+
+      # A stopped search's result is unwanted however it settled. Clear the
+      # sentinel and leave the "Search stopped" status in place; the
+      # student's earlier results stay on screen.
+      if (isTRUE(values$fetch_cancelled)) {
+        values$fetch_cancelled <- FALSE
+        if (!is.null(values$cancel_file)) unlink(values$cancel_file)
         values$loading_visible <- FALSE
         values$fetch_start_time <- NULL
         return()
       }
 
-      if (task_status != "success") return()
+      if (task_status == "error") {
+        # Keep the condition, not just its message: a timeout is classed
+        # (wqp_timeout, from wqp_request in R/fetch-wq.R) so it can be told
+        # apart from a rejected request. The message match is a backstop in
+        # case a future runtime wraps the condition and drops the class.
+        err <- tryCatch({
+          water_fetch_task$result()
+          simpleError("Unknown error")
+        }, error = function(e) e)
+        err_msg <- conditionMessage(err)
+
+        if (inherits(err, "wqp_timeout") ||
+            grepl("did not respond within", err_msg, fixed = TRUE)) {
+          # Not an "oops" — nothing went wrong with the search. The Portal
+          # stalls ~12% of requests for no reason we can see, and the same
+          # search usually works on the next try. Say that plainly instead
+          # of showing a student a technical error they can't act on.
+          values$status <- paste0(
+            "The Water Quality Portal didn't answer in time.\n\n",
+            "There's nothing wrong with your search — the Portal is just ",
+            "being slow right now. We waited, tried again, and it still ",
+            "didn't answer.\n\n",
+            "What you can try:\n",
+            "- Click 'Get Water Data' again — this usually clears up on its own\n",
+            "- If it keeps happening, try fewer counties or a shorter year range"
+          )
+          showNotification(
+            "The Water Quality Portal didn't answer. Please try again.",
+            type = "warning", duration = 8
+          )
+        } else {
+          values$status <- paste0(
+            "Oops! Something went wrong while fetching data.\n\n",
+            "Technical details: ", err_msg, "\n\n",
+            "What you can try:\n",
+            "- Wait a moment and click 'Get Water Data' again\n",
+            "- Check your internet connection\n",
+            "- Try selecting a different county or smaller year range\n",
+            "- Ask your teacher for help if this keeps happening"
+          )
+          showNotification(
+            "There was a problem fetching data. Try again or select different options.",
+            type = "error", duration = 8
+          )
+        }
+        values$loading_visible <- FALSE
+        values$fetch_start_time <- NULL
+        return()
+      }
 
       result <- water_fetch_task$result()
       wq_raw <- result$wq_raw
@@ -921,6 +1212,11 @@ server <- function(input, output, session) {
       # Get year range text from input (still available in main process)
       start_year <- input$year_selection[1]
       end_year <- input$year_selection[2]
+
+      # The legacy fallback only loses data the student asked for when the
+      # year range reaches into the post-March-2024 USGS gap; for older
+      # ranges legacy is complete and a warning would be a false alarm.
+      legacy_gap <- identical(result$service, "legacy") && end_year >= 2024
       year_range_text <- if (start_year == end_year) {
         paste("Year", start_year)
       } else {
@@ -930,18 +1226,40 @@ server <- function(input, output, session) {
       values$status <- paste("Processing", nrow(wq_raw), "samples from", location, "...")
 
       if (nrow(wq_raw) == 0) {
-        values$status <- paste0(
-          "No water quality data found for ", location, ".\n\n",
-          "This might mean:\n",
-          "- This county doesn't have water quality monitoring stations\n",
-          "- No data was collected during your selected years\n",
-          "- The selected parameters aren't monitored here\n\n",
-          "Try: Select a different county, expand your year range, or choose different parameters."
-        )
-        showNotification(
-          paste("No data found for", location, "- try a different county or expand your year range"),
-          type = "warning", duration = 8
-        )
+        # An empty legacy-fallback result for a recent range must not be
+        # reported as "no data": USGS measurements after March 2024 exist
+        # only on the WQX3 service we just failed to reach, so in a county
+        # where USGS is the main provider this empty result says nothing
+        # about whether data exists. Saying "no data" here would tell a
+        # teacher their creek has no monitoring when the Portal was merely
+        # having a bad minute.
+        if (legacy_gap) {
+          values$status <- paste0(
+            "We couldn't check the newest data for ", location, ".\n\n",
+            "The newest water data service isn't answering right now, and the ",
+            "older backup service found nothing for this search. That does not ",
+            "mean there's no data — USGS measurements after March 2024 are only ",
+            "on the service we couldn't reach.\n\n",
+            "Try: Click 'Get Water Data' again in a few minutes."
+          )
+          showNotification(
+            "The newest data service isn't answering - please try this search again in a few minutes.",
+            type = "warning", duration = 8
+          )
+        } else {
+          values$status <- paste0(
+            "No water quality data found for ", location, ".\n\n",
+            "This might mean:\n",
+            "- This county doesn't have water quality monitoring stations\n",
+            "- No data was collected during your selected years\n",
+            "- The selected parameters aren't monitored here\n\n",
+            "Try: Select a different county, expand your year range, or choose different parameters."
+          )
+          showNotification(
+            paste("No data found for", location, "- try a different county or expand your year range"),
+            type = "warning", duration = 8
+          )
+        }
         values$loading_visible <- FALSE
         values$fetch_start_time <- NULL
         return()
@@ -981,15 +1299,35 @@ server <- function(input, output, session) {
       } else {
         ""
       }
+      # A fallback result for a recent range looks complete — graphs draw
+      # fine — but is missing every USGS measurement after March 2024, so
+      # the student must be told the results are partial.
+      legacy_note <- if (legacy_gap) {
+        paste0(
+          "\n\nHeads up: the newest data service wasn't answering, so these ",
+          "results came from an older backup. Measurements from USGS after ",
+          "March 2024 may be missing. Run this search again later for the ",
+          "most complete data."
+        )
+      } else {
+        ""
+      }
       values$status <- paste0(
         "Data processing complete for ", location, "! Found ",
         nrow(processed$long_data), " measurements from ",
         processed$n_sites_total, " monitoring sites. Year range: ", year_range_text,
         " - Parameters found: ", paste(processed$found_parameters, collapse = ", "),
-        unit_note
+        unit_note, legacy_note
       )
 
-      showNotification("Data fetched successfully!", type = "message", duration = 5)
+      if (legacy_gap) {
+        showNotification(
+          "Results came from a backup data service - some recent USGS measurements may be missing.",
+          type = "warning", duration = 8
+        )
+      } else {
+        showNotification("Data fetched successfully!", type = "message", duration = 5)
+      }
 
       # Hide loading indicator
       values$loading_visible <- FALSE
@@ -1022,14 +1360,36 @@ server <- function(input, output, session) {
       }
     })
     
-    # Show warning for large year ranges
-    observeEvent(input$year_selection, {
-      if (!is.null(input$year_selection) && length(input$year_selection) == 2) {
-        year_range <- input$year_selection[2] - input$year_selection[1] + 1
-        if (year_range > 3) {
-          warning_text <- paste("Loading", year_range, "years of data may take 30-90 seconds depending on data availability.")
-          showNotification(warning_text, type = "warning", duration = 6)
+    # Estimated search time under the county picker. The model and the soft
+    # cap live in R/wq-estimate.R so they can be tested against the measured
+    # benchmark numbers.
+    output$county_estimate <- renderUI({
+      n <- length(input$county_selection)
+      if (n == 0) return(NULL)
+      secs <- wq_time_estimate(n, selected_year_span(input$year_selection))
+      over_cap <- n > wq_county_soft_cap
+      div(
+        class = paste("wq-estimate", if (over_cap) "wq-estimate-warn" else ""),
+        paste0(n, if (n == 1) " county · " else " counties · ", format_estimate(secs)),
+        if (over_cap) {
+          span(class = "wq-estimate-note",
+               " — each county is looked up separately, so this will be slow. Fewer counties will be much faster.")
         }
+      )
+    })
+
+    # Show warning for large year ranges. The estimate keeps this honest:
+    # the old copy here claimed 30-90 seconds for a long range, but a
+    # 5-year single-county search measures 9.5s.
+    observeEvent(input$year_selection, {
+      year_range <- selected_year_span(input$year_selection)
+      if (year_range > 3) {
+        n <- max(1, length(input$county_selection))
+        showNotification(
+          paste0("Searching ", year_range, " years takes ",
+                 format_estimate(wq_time_estimate(n, year_range)), "."),
+          type = "warning", duration = 6
+        )
       }
     })
     
@@ -1104,13 +1464,73 @@ server <- function(input, output, session) {
         siteType = "Stream"
       )
 
-      # Show loading indicator and start timer
+      # Show loading indicator and start timer. The summary echoes the
+      # student's own choices back to them so it's clear what is being
+      # looked up (and that the click registered).
+      year_summary <- if (start_year == end_year) {
+        as.character(start_year)
+      } else {
+        paste0(start_year, "–", end_year)
+      }
+      values$current_query_summary <- paste0(
+        values$current_location, " · ", year_summary, " · ",
+        length(selected_parameters),
+        if (length(selected_parameters) == 1) " parameter" else " parameters"
+      )
+      # Which wait message to show. Measured medians over 4 cold reps each
+      # (tests/benchmark-results.csv):
+      #   1 county,  1 year,  5 params ->  4.6s
+      #   1 county,  1 year, 16 params ->  5.1s   parameters: negligible
+      #   1 county,  5 years, 5 params ->  9.5s   year range: modest
+      #   3 counties, 1 year, 5 params -> 14.1s   counties: ~4.7s each
+      # So the number of counties dominates — the API rejects multi-county
+      # requests, so we issue one request per county in series. Parameter
+      # count is deliberately NOT a term here: it barely moves the clock.
+      values$query_is_big <- length(county_codes) >= 2 ||
+        (end_year - start_year + 1) >= 4
+
       values$loading_visible <- TRUE
       values$fetch_start_time <- Sys.time()
-      values$status <- "Requesting data from USGS Water Quality Portal... (0 seconds)"
+      values$fetch_elapsed <- 0
+      values$status <- "Searching the USGS Water Quality Portal…"
+
+      # Fresh sentinel path per fetch, and clear any file left behind by a
+      # previous cancelled search — a stale sentinel would abort this fetch
+      # before it issued a single request.
+      values$fetch_cancelled <- FALSE
+      values$cancel_file <- file.path(
+        tempdir(), paste0("wq-cancel-", session$token, ".flag")
+      )
+      unlink(values$cancel_file)
 
       # Invoke the async task - UI will remain responsive
-      water_fetch_task$invoke(qry, values$current_location)
+      water_fetch_task$invoke(qry, values$current_location,
+                              wq_cache_dir(), values$cancel_file)
+    })
+
+    # "Stop waiting" in the loading card.
+    #
+    # ExtendedTask has no cancel(), and a request already inside curl cannot
+    # be interrupted from here, so this does two separate things: it drops
+    # the sentinel file the worker polls between counties (which genuinely
+    # ends a multi-county fetch early), and it marks the result unwanted so
+    # whatever eventually lands is discarded. The student's previous results
+    # stay on screen untouched.
+    #
+    # The Get Water Data button stays busy until the task actually settles —
+    # bind_task_button follows the task, not this flag — so the copy says so
+    # rather than pretending the search is already gone. That wait is now
+    # bounded by the per-request deadline instead of being open-ended.
+    observeEvent(input$cancel_fetch, {
+      req(values$loading_visible)
+      values$fetch_cancelled <- TRUE
+      if (!is.null(values$cancel_file)) file.create(values$cancel_file)
+      values$loading_visible <- FALSE
+      values$fetch_start_time <- NULL
+      values$status <- paste0(
+        "Search stopped. Your earlier results are still below.\n",
+        "The Get Water Data button will be ready again in a moment."
+      )
     })
     
 

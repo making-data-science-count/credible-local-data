@@ -46,7 +46,17 @@
       "Bash(git checkout *)",
       "Bash(git rev-list *)",
       "Bash(git push *)",
-      "Bash(git diff *)"
+      "Bash(git diff *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://127.0.0.1:7788)",
+      "Bash(pkill -f \"runApp\\\\\\(\\\\\"app.R\\\\\", port = 7788\")",
+      "Read(//Users/jrosenb8/.claude/**)",
+      "Bash(jq -r keys[] .claude/settings.local.json)",
+      "Read(//Users/jrosenb8/**)",
+      "Bash(curl -sS --max-time 15 https://downloads.claude.ai/claude-code-releases/latest)",
+      "Bash(claude --version)",
+      "Bash(awk '{print $1}')",
+      "Bash(awk '/^## /{if\\(s\\)print c\" chars\\\\t\"s; s=$0; c=0} {c+=length\\($0\\)+1} END{if\\(s\\)print c\" chars\\\\t\"s}' CLAUDE.md)",
+      "Bash(awk '/^### /{if\\(s\\)print c\" chars\\\\t\"s; s=$0; c=0} s{c+=length\\($0\\)+1} END{if\\(s\\)print c\" chars\\\\t\"s}' CLAUDE.md)"
     ]
   }
 }

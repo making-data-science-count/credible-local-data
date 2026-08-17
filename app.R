@@ -66,6 +66,14 @@ states_df <- fips_clean %>%
 # query returns a full year of data.
 current_year <- as.integer(format(Sys.Date(), "%Y"))
 
+# Dual-mode: this one codebase serves both the CODAP plugin (embedded in an
+# iframe) and a standalone website. Embedding is detected at runtime in the
+# browser (window !== window.parent); setting the STANDALONE env var at
+# deploy time forces standalone mode regardless of iframe status — for a
+# second deployment under its own URL, and to test standalone mode locally:
+#   STANDALONE=1 Rscript -e 'shiny::runApp()'
+standalone_override <- nzchar(Sys.getenv("STANDALONE"))
+
 # CREDIBLE Brand Colors
 # Primary (Coral Red): #E63946
 # Secondary (Teal): #60C5BA
@@ -424,6 +432,45 @@ a {
 a:hover {
   color: #2A5F70 !important;
 }
+
+/* ---- Dual mode: CODAP plugin vs standalone website ----
+   The detection script in tags$head sets body.embedded or body.standalone.
+   The CODAP send block is hidden by DEFAULT and shown only once embedding
+   is confirmed — standalone is the safe default, so the brief gap before
+   the class lands can never flash a Send to CODAP button that wouldn't
+   work. Everything below is scoped to .standalone/.embedded so the
+   embedded (CODAP plugin) presentation is untouched. */
+.codap-send-block {
+  display: none;
+}
+body.embedded .codap-send-block {
+  display: block;
+}
+
+/* Standalone layout: the app is tuned for a narrow CODAP iframe; in a
+   full browser tab, cap the width, center it, and let it breathe. */
+body.standalone .content-wrapper .content {
+  max-width: 1100px;
+  margin: 0 auto !important;
+  padding: 20px 28px !important;
+}
+body.standalone .box {
+  margin-bottom: 24px !important;
+}
+
+/* Standalone: with the CODAP button hidden, Download as CSV is the
+   primary action, so it takes over the CODAP button's primary styling. */
+body.standalone #download_wide {
+  background-color: #3B7A8C !important;
+  border-color: #2A5F70 !important;
+  color: white !important;
+  font-size: 16px;
+  padding: 12px 24px;
+}
+body.standalone #download_wide:hover {
+  background-color: #2A5F70 !important;
+  border-color: #1F4A58 !important;
+}
 "
 
 # Static assets (logo, vendored JS) are served from the www/ directory,
@@ -449,6 +496,23 @@ ui <- dashboardPage(
           document.body.classList.toggle('wq-fetching', !!(msg && msg.fetching));
         });
       ")),
+      # Dual-mode detection. Embedding is knowable synchronously
+      # (window !== window.parent); the STANDALONE deploy-time override is
+      # injected from R. The result goes three places: a body class for the
+      # CSS, input$is_embedded for the server guards, and the
+      # isEmbeddedInCodap flag the CODAP script below reads before
+      # initializing the iframe-phone bridge.
+      tags$script(HTML(sprintf("
+        var STANDALONE_OVERRIDE = %s;
+        var isEmbeddedInCodap = !STANDALONE_OVERRIDE && (window !== window.parent);
+        document.addEventListener('DOMContentLoaded', function() {
+          document.body.classList.toggle('standalone', !isEmbeddedInCodap);
+          document.body.classList.toggle('embedded', isEmbeddedInCodap);
+        });
+        $(document).on('shiny:connected', function() {
+          Shiny.setInputValue('is_embedded', isEmbeddedInCodap, {priority: 'event'});
+        });
+      ", if (standalone_override) "true" else "false"))),
       # iframe-phone is vendored locally (www/iframe-phone.js) so the CODAP
       # connection works on school networks that block CDNs.
       tags$script(src = "iframe-phone.js"),
@@ -487,9 +551,13 @@ ui <- dashboardPage(
           }
         }
 
-        // Call init when page loads
+        // Call init when page loads — but only when actually embedded in
+        // CODAP. Standalone pages have no plugin host to phone, so the
+        // iframe-phone bridge is never initialized there.
         window.addEventListener('load', function() {
-          initCodapConnection();
+          if (isEmbeddedInCodap) {
+            initCodapConnection();
+          }
         });
 
         // CODAP Interface Helper Function
@@ -877,7 +945,9 @@ ui <- dashboardPage(
         box(
           title = "Send your data", status = "primary", solidHeader = TRUE, width = 12,
           div(style = "margin-top: 4px;",
-            div(style = "margin-bottom: 12px;",
+            # class codap-send-block: hidden by default, shown by CSS only
+            # once the page confirms it is embedded in CODAP (dual mode).
+            div(class = "codap-send-block", style = "margin-bottom: 12px;",
               actionButton("send_to_codap", "Send to CODAP",
                 class = "btn-primary btn-lg", icon = icon("chart-bar"),
                 style = "font-size: 16px; padding: 12px 24px;"),
@@ -933,6 +1003,16 @@ server <- function(input, output, session) {
       cancel_file = NULL
     )
     
+    # Dual mode: TRUE only once the browser has confirmed this session is
+    # embedded in CODAP (input$is_embedded, from the detection script in
+    # tags$head). Until that input arrives — or if the STANDALONE deploy
+    # override is set — this is FALSE: standalone is the safe default,
+    # matching the CSS that hides the CODAP button until embedding is
+    # confirmed.
+    is_embedded <- reactive({
+      !standalone_override && isTRUE(input$is_embedded)
+    })
+
     # Make loading_visible available as an input for the conditional panel
     output$loading_visible <- reactive({
       values$loading_visible
@@ -1599,8 +1679,12 @@ server <- function(input, output, session) {
     # CODAP EXPORT SERVER LOGIC - Water Quality
     # =============================================================================
     
-    # observeEvent for "Send to CODAP" button (Water Quality)
+    # observeEvent for "Send to CODAP" button (Water Quality).
+    # CODAP-only: the button is hidden in standalone mode, so this firing
+    # without embedding would mean a spoofed/stale input — drop it.
     observeEvent(input$send_to_codap, {
+      req(is_embedded())
+
       # Get the filtered data
       data <- filtered_wide_data()
       
@@ -1711,8 +1795,10 @@ server <- function(input, output, session) {
       # (see the sendToCODAP JS handler), so no transient toast here.
     })
 
-    # Handle CODAP export status feedback from JavaScript
+    # Handle CODAP export status feedback from JavaScript (CODAP-only, so
+    # guarded on embedded mode like the send observer above)
     observeEvent(input$codap_export_status, {
+      req(is_embedded())
       status <- input$codap_export_status
       
       if (!is.null(status) && !is.null(status$success)) {

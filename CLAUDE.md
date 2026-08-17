@@ -67,6 +67,18 @@ WQP characteristic names are exact-match, and most data is recorded under names 
 - `normalize_wq_parameter()` collapses fetched names → labels, so synonyms share one column after pivoting
 - Only same-quantity/same-basis synonyms are merged; "Nitrate as N" vs "Nitrate" (as NO3) are intentionally NOT merged
 
+## Dual Mode (CODAP plugin vs standalone website)
+
+One codebase serves two deployments: the CODAP plugin (app embedded in a CODAP iframe) and a standalone website. The mode is decided at runtime in the browser — `window !== window.parent` — and reported in three places:
+
+- a **body class** (`embedded` or `standalone`) that all mode-specific CSS is scoped to
+- **`input$is_embedded`** (`Shiny.setInputValue(..., {priority: "event"})` on `shiny:connected`), read via the server's `is_embedded` reactive
+- the JS flag `isEmbeddedInCodap`, which gates iframe-phone bridge initialization (the bridge is never initialized standalone)
+
+**Deploy-time override**: setting the `STANDALONE` env var (any non-empty value; checked once at app startup via `Sys.getenv`) forces standalone mode even inside an iframe — for a second deployment under its own URL, and for local testing (`STANDALONE=1 Rscript -e 'shiny::runApp()'`). The override value is injected from R into the detection script with `sprintf`.
+
+**Standalone is the safe default**: the CODAP send block (`.codap-send-block` — the Send button, `#codap_send_status`, and the CODAP blurb) is hidden by *default* CSS and shown only under `body.embedded`, so the brief gap before detection can never flash a CODAP button that wouldn't work. Server-side, the CODAP-only observers (`input$send_to_codap`, `input$codap_export_status`) `req(is_embedded())`, which is FALSE until the browser confirms embedding. In standalone, "Download as CSV" (`#download_wide`) takes over the CODAP button's primary styling, and the layout gets a centered 1100px max-width — all CSS-only, scoped to `body.standalone`, so the embedded (CODAP) presentation and behavior are untouched.
+
 ## CODAP Integration
 
 The app implements the CODAP Data Interactive Plugin API using **iframe-phone**, vendored locally at `www/iframe-phone.js` (do not load it from a CDN — school networks block CDNs).
@@ -118,3 +130,4 @@ Deployed to shinyapps.io (see `rsconnect/`). Key considerations:
 - `.rscignore` controls what is uploaded; documentation, archived code, and reference scripts are excluded
 - Large data queries (10+ years) may time out on free tiers
 - Keep all static assets in `www/` — nothing outside it should be web-accessible
+- **Standalone deployment**: deploy the same code a second time under its own URL with the `STANDALONE` env var set (on shinyapps.io: `rsconnect::appDependencies` doesn't carry env vars — set it in the deployment's environment settings). The plugin deployment needs no env var: iframe detection handles it (see Dual Mode above).
